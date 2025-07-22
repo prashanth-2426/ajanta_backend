@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "companyName": "Alpha Tech",
+    "industry": "Logistics",
+    "subIndustry": "Air Cargo Ocean Freight",
+    "product": "Ocean Import",
+    "contactPerson": "John Doe",
+    "username": "alpha_admin",
+    "registeredOn": "2024-01-15"
+  },
+  {
+    "id": 2,
+    "companyName": "OM Logistics Ltd",
+    "industry": "Logistics",
+    "subIndustry": "Air Cargo Ocean Freight",
+    "product": "Vaccine",
+    "contactPerson": "Jane Smith",
+    "username": "beta_user",
+    "registeredOn": "2024-03-20"
+  },
+  {
+    "id": 3,
+    "companyName": "Emirates Logistics",
+    "industry": "Logistics",
+    "subIndustry": "Road Transport",
+    "product": "Pan India",
+    "contactPerson": "Emily Davis",
+    "username": "gamma_ops",
+    "registeredOn": "2024-05-10"
+  },
+  {
+    "id": 4,
+    "companyName": "Alpha Tech",
+    "industry": "Logistics",
+    "subIndustry": "Air Cargo Ocean Freight",
+    "product": "Ocean Import",
+    "contactPerson": "John Doe",
+    "username": "alpha_admin",
+    "registeredOn": "2024-01-15"
+  },
+  {
+    "id": 5,
+    "companyName": "OM Logistics Ltd",
+    "industry": "Logistics",
+    "subIndustry": "Air Cargo Ocean Freight",
+    "product": "Vaccine",
+    "contactPerson": "Jane Smith",
+    "username": "beta_user",
+    "registeredOn": "2024-03-20"
+  },
+  {
+    "id": 6,
+    "companyName": "Emirates Logistics",
+    "industry": "Logistics",
+    "subIndustry": "Road Transport",
+    "product": "Pan India",
+    "contactPerson": "Emily Davis",
+    "username": "gamma_ops",
+    "registeredOn": "2024-05-10"
+  }
+]
