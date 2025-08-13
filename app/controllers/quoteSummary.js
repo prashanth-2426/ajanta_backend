@@ -1,5 +1,6 @@
 const { QuotesData, RfqData } = require("../models");
-const { Op } = require("sequelize");
+//const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 
 const getQuoteSummary = async (req, res) => {
   try {
@@ -306,8 +307,93 @@ const updateRfqStatus = async (req, res) => {
   }
 };
 
+const getPreviousAuctionsByCountryAndWeight = async (req, res) => {
+  console.log("reached backend for country and weight");
+  const { country, totalGrossWeight } = req.params;
+
+  console.log("country:", country, "totalGrossWeight:", totalGrossWeight);
+
+  if (!country || !totalGrossWeight) {
+    return res
+      .status(400)
+      .json({ error: "country and totalGrossWeight are required" });
+  }
+
+  try {
+    // Fetch RFQs that match country and are within ±500 of weight
+    const rfqs = await RfqData.findAll();
+
+    console.log("Fetched RFQs with country matched:", rfqs.length);
+
+    const matchingRfqs = rfqs.filter((rfq) => {
+      const rfqCountry = rfq.data?.country;
+      const rfqWeightStr = rfq.data?.package_summary?.totalGrossWeight;
+
+      if (!rfqWeightStr || parseFloat(rfqWeightStr) === 0) return false;
+
+      const rfqWeight = parseFloat(
+        rfq.data?.package_summary?.totalGrossWeight || 0
+      );
+      const targetWeight = parseFloat(totalGrossWeight);
+
+      // Must match country and be within ±500 of target weight
+      return (
+        rfqCountry === country &&
+        rfqWeight >= targetWeight - 500 &&
+        rfqWeight <= targetWeight + 500
+      );
+    });
+
+    if (matchingRfqs.length === 0) {
+      return res.json([]);
+    }
+
+    // Fetch all matching RFQ numbers' quotes
+    const rfqNumbers = matchingRfqs.map((r) => r.rfq_number);
+    const quotes = await QuotesData.findAll({
+      where: {
+        rfq_id: { [Op.in]: rfqNumbers },
+      },
+    });
+
+    // Build response similar to getQuoteSummaryById
+    const result = matchingRfqs.map((rfq) => {
+      const rfqQuotes = quotes
+        .filter((q) => q.rfq_id === rfq.rfq_number)
+        .map((q) => q.data);
+
+      return {
+        rfq_number: rfq.rfq_number,
+        title: rfq.data?.title,
+        description: rfq.data?.description,
+        country: rfq.country,
+        totalGrossWeight: rfq.data?.package_summary?.totalGrossWeight,
+        vendors: rfqQuotes.map((entry) => {
+          const vendor = rfq.data?.vendors?.find(
+            (v) => v.id == entry.vendor_id
+          );
+          return {
+            vendor_id: vendor?.id || entry.vendor_id,
+            vendor_name: vendor?.name || `Vendor ${entry.vendor_id}`,
+            company: vendor?.company || "-",
+            email: vendor?.email || "",
+            package_quotes: entry.package_quotes || [],
+            quotes: entry.quotes || [],
+          };
+        }),
+      };
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error fetching previous auctions:", error.message);
+    res.status(500).json({ error: "Unable to fetch previous auctions" });
+  }
+};
+
 module.exports = {
   getQuoteSummary,
   getQuoteSummaryById,
   updateRfqStatus,
+  getPreviousAuctionsByCountryAndWeight,
 };
