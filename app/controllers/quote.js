@@ -8,6 +8,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 const mailQueue = require("../queues/mailQueue");
+const { sendBuyerQuoteNotification } = require("../queues/mailer");
 const { QuotesData } = require("../models");
 const { RfqData } = require("../models");
 const { Op } = require("sequelize");
@@ -35,6 +36,54 @@ const createQuote = async (req, res) => {
           "At least one of 'quotes', 'road_transport_quotes', or 'package_quotes' must be a non-empty array.",
       });
     }
+
+    // const rfqRecordtst = await RfqData.findOne({
+    //   where: { rfq_number: rfq_id },
+    // });
+
+    // if (!rfqRecordtst) {
+    //   throw new Error("RFQ not found");
+    // }
+
+    // const existingVendors = rfqRecordtst.data.vendors || [];
+
+    // // Find the vendor submitting the new quote
+    // const currentVendor = existingVendors.find((v) => v.id === vendor_id);
+
+    // if (!currentVendor) {
+    //   return res.json({
+    //     isSuccess: false,
+    //     message: "Vendor is not part of this RFQ.",
+    //   });
+    // }
+
+    // const existingQuoteVendor = await QuotesData.findOne({
+    //   where: { rfq_id, vendor_id },
+    // });
+    // const existingQuoteFromVendor = await QuotesData.findOne({
+    //   where: { rfq_id },
+    // });
+    // console.log(
+    //   "existingQuoteFromVendor",
+    //   existingQuoteFromVendor,
+    //   existingQuoteFromVendor.vendor_id
+    // );
+    // console.log("existingQuoteVendor", existingQuoteVendor);
+
+    // // Check if another vendor from the same company has already quoted
+    // const duplicateCompanyVendor = existingVendors.find(
+    //   (v) => v.company === currentVendor.company && v.id !== vendor_id
+    // );
+
+    // if (existingQuoteVendor != null && !existingQuoteVendor) {
+    //   console.log(
+    //     `Another vendor (${duplicateCompanyVendor.name}, ID: ${duplicateCompanyVendor.id}) from company ${currentVendor.company} has already submitted a quotation.`
+    //   );
+    //   return res.status(409).json({
+    //     isSuccess: false,
+    //     message: `A vendor from ${currentVendor.company} has already submitted a quotation for this RFQ.`,
+    //   });
+    // }
 
     const existing = await QuotesData.findOne({ where: { rfq_id, vendor_id } });
 
@@ -112,6 +161,24 @@ const createQuote = async (req, res) => {
         quote_count: vendorCount,
         data: updatedRfqData,
       });
+
+      // Notify RFQ creator about new quote via mail
+      console.log("buyer email found", rfqRecord.data.buyer.email);
+      const vendor = rfqRecord.data.vendors.find((v) => v.id === vendor_id);
+      await sendBuyerQuoteNotification(
+        rfqRecord.data.buyer.email,
+        rfqRecord.data.buyer.name,
+        vendor.id +
+          ":" +
+          "Company: " +
+          vendor.company +
+          " " +
+          "Name: " +
+          vendor.name,
+        rfqRecord.data.auction_number
+          ? rfqRecord.data.auction_number + "-" + rfqRecord.data.title
+          : rfqRecord.data.rfq_number + "-" + rfqRecord.data.title
+      );
     }
 
     return res.json({
@@ -162,6 +229,10 @@ const getQuotesByRfq = async (req, res) => {
 
       if (q.data.road_transport_quotes?.length) {
         result.road_transport_quotes = q.data.road_transport_quotes;
+      }
+
+      if (q.data.negotiation) {
+        result.negotiation = q.data.negotiation;
       }
 
       return result;

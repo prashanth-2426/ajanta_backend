@@ -1,6 +1,8 @@
 const { QuotesData, RfqData } = require("../models");
 //const { Op } = require("sequelize");
 const { Op, Sequelize } = require("sequelize");
+const mailQueue = require("../queues/mailQueue");
+const { sendVendorNegotiationMail } = require("../queues/mailer");
 
 const getQuoteSummary = async (req, res) => {
   try {
@@ -215,6 +217,19 @@ const getQuoteSummaryById = async (req, res) => {
         shipments: shipmentSummary,
         isShipmentBased: true,
         shipmentType: rfq.data?.subindustry,
+        vendors: rfqQuotes.map((entry) => {
+          const vendor = rfq.data?.vendors?.find(
+            (v) => v.id == entry.vendor_id
+          );
+          return {
+            vendor_id: vendor?.id || entry.vendor_id,
+            vendor_name: vendor?.name || `Vendor ${entry.vendor_id}`,
+            company: vendor?.company || "-",
+            email: vendor?.email || "",
+            package_quotes: entry.package_quotes || [],
+            quotes: entry.quotes || [],
+          };
+        }),
       });
     }
 
@@ -296,6 +311,33 @@ const updateRfqStatus = async (req, res) => {
           }
 
           await quote.update({ data: qData });
+
+          // ✅ Send negotiation email to vendor
+          const rfqRecordtst = await RfqData.findOne({
+            where: { rfq_number: rfq_number },
+          });
+          const existingVendors = rfqRecordtst.data.vendors || [];
+          console.log("Existing vendors:", existingVendors);
+          const vendor = existingVendors.find(
+            (v) => v.id == negotiationEntry.vendor_id
+          );
+          console.log("Vendor email for negotiation:", vendor);
+
+          try {
+            await sendVendorNegotiationMail(
+              vendor.email,
+              vendor.name,
+              rfq_number,
+              negotiationEntry.last_purchase_price,
+              negotiationEntry.remarks
+            );
+            console.log(`📩 Negotiation mail sent to ${vendor.email}`);
+          } catch (err) {
+            console.error(
+              `❌ Failed to send negotiation mail to ${vendor.email}`,
+              err.message
+            );
+          }
         }
       }
     }
@@ -364,6 +406,9 @@ const getPreviousAuctionsByCountryAndWeight = async (req, res) => {
 
       return {
         rfq_number: rfq.rfq_number,
+        shipment_number: rfq.data?.buyer?.preshipmentnumber
+          ? rfq.data?.buyer?.preshipmentnumber
+          : rfq.data?.buyer?.postshipmentnumber,
         title: rfq.data?.title,
         description: rfq.data?.description,
         country: rfq.country,

@@ -9,7 +9,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 const mailQueue = require("../queues/mailQueue");
-const sendVendorInvitation = require("../queues/mailer");
+const { sendVendorInvitation } = require("../queues/mailer");
 
 const createRFQWithAttachments = async (req, res) => {
   const t = await RFQ.sequelize.transaction();
@@ -108,7 +108,8 @@ const createRFQ = async (req, res) => {
     }
 
     await t.commit();
-    if (fullData?.vendors?.length) {
+    if (fullData?.vendors?.length && fullData.form_type != "draft") {
+      console.log("Scheduling vendor invitations...", fullData.form_type);
       fullData.vendors.forEach((vendor) => {
         sendVendorInvitation(vendor.email, vendor.name, fullData.title);
       });
