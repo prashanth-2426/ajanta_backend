@@ -87,6 +87,26 @@ const createQuote = async (req, res) => {
 
     const existing = await QuotesData.findOne({ where: { rfq_id, vendor_id } });
 
+    const existuser = existing ? await User.findByPk(existing.vendor_id) : null;
+
+    const newuser = await User.findByPk(vendor_id);
+
+    const existCompany = existuser?.company;
+    const newCompany = newuser?.company;
+
+    // Fix #1: Ensure both users are valid before comparing
+    if (
+      existuser &&
+      newuser &&
+      existing.vendor_id !== newuser.id && // Fix #2: Correct comparison
+      existCompany === newCompany
+    ) {
+      return res.status(409).json({
+        isSuccess: false,
+        message: `A vendor from ${existCompany} has already submitted a quotation for this.`,
+      });
+    }
+
     if (existing) {
       const current = existing.data || {};
 
@@ -216,8 +236,6 @@ const getQuotesByRfq = async (req, res) => {
         rfq_id: q.rfq_id,
         vendor_id: q.vendor_id,
       };
-
-      console.log("quote value", q);
 
       if (q.data.quotes?.length) {
         result.quotes = q.data.quotes;

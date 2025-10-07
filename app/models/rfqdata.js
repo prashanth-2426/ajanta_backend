@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
       status: DataTypes.STRING,
       quote_count: DataTypes.INTEGER,
       data: DataTypes.JSON,
+      is_deleted: {
+        type: DataTypes.BOOLEAN, // will map to TINYINT(1) in MySQL
+        defaultValue: false,
+      },
       createdAt: {
         type: DataTypes.DATE,
         field: "createdAt", // ✅ maps Sequelize createdAt to DB column created_at

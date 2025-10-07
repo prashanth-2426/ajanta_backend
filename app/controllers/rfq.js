@@ -128,6 +128,7 @@ const getAllRFQs = async (req, res) => {
   try {
     const { email } = req.query;
     const rfqs = await RfqData.findAll({
+      where: { is_deleted: false },
       order: [["createdAt", "DESC"]],
     });
     let formatted = rfqs.map((entry) => entry.data);
