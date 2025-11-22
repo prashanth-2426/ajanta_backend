@@ -54,27 +54,28 @@ const register = async (req, res) => {
       msg: "User Already exist! Please login with your credentials.",
     });
   }
-  const todayDate = new Date();
-  const result = todayDate.setDate(
-    todayDate.getDate() + process.env.PASSWORDEXPIRY
-  );
+  try {
+    const todayDate = new Date();
+    const result = todayDate.setDate(
+      todayDate.getDate() + process.env.PASSWORDEXPIRY
+    );
 
-  const newUser = await User.create({
-    name,
-    email,
-    password,
-    passwordExpiry: new Date(result),
-    role,
-    ...otherFields,
-  });
+    const newUser = await User.create({
+      name,
+      email,
+      password,
+      passwordExpiry: new Date(result),
+      role,
+      ...otherFields,
+    });
 
-  if (newUser) {
     return res.status(201).send({
       isSuccess: true,
       msg: "User is created successfully! Please login",
     });
-  } else {
-    return res.status(400).send({
+  } catch (error) {
+    console.error("Error in user creation:", error);
+    return res.status(500).json({
       isSuccess: false,
       error: "Something went wrong while creating the account!",
     });
@@ -106,6 +107,7 @@ const login = async (req, res) => {
           email: email,
           token,
           role: user.role,
+          company: user.company,
         },
       });
     } else {
@@ -188,7 +190,8 @@ const verifyToken = async (req, res) => {
     where: { email: req.user.email, token: req.token },
   });
 
-  if (user) return res.status(200).json({ isSuccess: true, msg: "Valid user" });
+  if (user)
+    return res.status(200).json({ isSuccess: true, msg: "Valid user", user });
   return res.status(401).json({ isSuccess: false, msg: "Unauthorized!!" });
 };
 

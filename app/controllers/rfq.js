@@ -9,7 +9,10 @@ const {
 const fs = require("fs");
 const path = require("path");
 const mailQueue = require("../queues/mailQueue");
-const { sendVendorInvitation } = require("../queues/mailer");
+const {
+  sendVendorInvitation,
+  sendBuyerConfirmationEmail,
+} = require("../queues/mailer");
 
 const createRFQWithAttachments = async (req, res) => {
   const t = await RFQ.sequelize.transaction();
@@ -113,12 +116,20 @@ const createRFQ = async (req, res) => {
       fullData.vendors.forEach((vendor) => {
         sendVendorInvitation(vendor.email, vendor.name, fullData.title);
       });
+      await sendBuyerConfirmationEmail(
+        fullData.buyer.email,
+        fullData.buyer.name,
+        rfqData.title,
+        fullData.vendors
+      );
     }
     return res
       .status(200)
       .json({ isSuccess: true, message: "RFQ saved successfully" });
   } catch (error) {
-    await t.rollback();
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     console.error("Error in createRFQ:", error);
     return res.status(500).json({ isSuccess: false, error: error.message });
   }

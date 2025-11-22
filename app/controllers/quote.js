@@ -8,15 +8,25 @@ const {
 const fs = require("fs");
 const path = require("path");
 const mailQueue = require("../queues/mailQueue");
-const { sendBuyerQuoteNotification } = require("../queues/mailer");
+const {
+  sendBuyerQuoteNotification,
+  sendVendorQuoteSubmissionMail,
+} = require("../queues/mailer");
 const { QuotesData } = require("../models");
 const { RfqData } = require("../models");
-const { Op } = require("sequelize");
+//const { Op } = require("sequelize");
+const { Sequelize, Op } = require("sequelize");
 
 const createQuote = async (req, res) => {
   try {
-    const { rfq_id, vendor_id, quotes, road_transport_quotes, package_quotes } =
-      req.body;
+    const {
+      rfq_id,
+      vendor_id,
+      company,
+      quotes,
+      road_transport_quotes,
+      package_quotes,
+    } = req.body;
 
     if (!rfq_id || !vendor_id) {
       return res
@@ -87,44 +97,114 @@ const createQuote = async (req, res) => {
 
     const existing = await QuotesData.findOne({ where: { rfq_id, vendor_id } });
 
-    const existuser = existing ? await User.findByPk(existing.vendor_id) : null;
+    // const existuser = existing ? await User.findByPk(existing.vendor_id) : null;
 
-    const newuser = await User.findByPk(vendor_id);
+    // const newuser = await User.findByPk(vendor_id);
 
-    const existCompany = existuser?.company;
-    const newCompany = newuser?.company;
+    // const existCompany = existuser?.company;
+    // const newCompany = newuser?.company;
 
-    // Fix #1: Ensure both users are valid before comparing
-    if (
-      existuser &&
-      newuser &&
-      existing.vendor_id !== newuser.id && // Fix #2: Correct comparison
-      existCompany === newCompany
-    ) {
-      return res.status(409).json({
-        isSuccess: false,
-        message: `A vendor from ${existCompany} has already submitted a quotation for this.`,
-      });
+    // // Fix #1: Ensure both users are valid before comparing
+    // if (
+    //   existuser &&
+    //   newuser &&
+    //   existing.vendor_id !== newuser.id && // Fix #2: Correct comparison
+    //   existCompany === newCompany
+    // ) {
+    //   return res.status(409).json({
+    //     isSuccess: false,
+    //     message: `A vendor from ${existCompany} has already submitted a quotation for this.`,
+    //   });
+    // }
+    // Find if any quote already exists for the same RFQ
+    const existingQuote = await QuotesData.findOne({
+      where: {
+        rfq_id,
+        [Op.and]: Sequelize.literal(
+          `JSON_UNQUOTE(JSON_EXTRACT(data, '$.company')) = '${company}'`
+        ),
+      },
+    });
+
+    if (existingQuote) {
+      // Fetch the vendor who already submitted
+      const existingVendor = await User.findByPk(existingQuote.vendor_id);
+      const newVendor = await User.findByPk(vendor_id);
+
+      if (existingVendor && newVendor) {
+        const existingCompany = existingVendor?.company;
+        const newCompany = newVendor.company;
+
+        console.log("Existing Company:", existingCompany);
+        console.log("New Company:", newCompany);
+
+        // 🚫 If both vendors belong to the same company but are different users
+        if (
+          existingCompany === newCompany &&
+          Number(existingQuote.vendor_id) !== Number(vendor_id)
+        ) {
+          return res.status(409).json({
+            isSuccess: false,
+            message: `A vendor from ${existingCompany} has already submitted a quotation for this RFQ.`,
+          });
+        }
+
+        // ✅ Allow same vendor to resubmit
+      }
     }
 
     if (existing) {
       const current = existing.data || {};
 
+      // let updatedPackageQuotes = Array.isArray(current.package_quotes)
+      //   ? [...current.package_quotes]
+      //   : [];
+
       let updatedPackageQuotes = Array.isArray(current.package_quotes)
-        ? [...current.package_quotes]
+        ? current.package_quotes.map((pkg) => ({
+            ...pkg,
+            quotes: pkg.quotes.map((q) => ({
+              ...q,
+              FirstBidPrice: q.FirstBidPrice || q.grandTotalValue || 0,
+            })),
+          }))
         : [];
 
       if (Array.isArray(package_quotes) && package_quotes.length > 0) {
         for (const newPkg of package_quotes) {
           const shipmentIndex = newPkg.shipment_index;
-          const existingIndex = updatedPackageQuotes.findIndex(
+
+          const existingPkgIndex = updatedPackageQuotes.findIndex(
             (pkg) => pkg.shipment_index === shipmentIndex
           );
 
-          if (existingIndex !== -1) {
-            updatedPackageQuotes[existingIndex] = newPkg;
+          if (existingPkgIndex !== -1) {
+            // Merge quotes individually to preserve FirstBidPrice
+            const mergedQuotes = newPkg.quotes.map((newQ, i) => {
+              const existingQ =
+                updatedPackageQuotes[existingPkgIndex].quotes?.[i];
+
+              return {
+                ...newQ,
+                // Keep old FirstBidPrice, else fallback to new grandTotalValue
+                FirstBidPrice:
+                  existingQ?.FirstBidPrice || newQ.grandTotalValue || 0,
+              };
+            });
+
+            updatedPackageQuotes[existingPkgIndex] = {
+              ...newPkg,
+              quotes: mergedQuotes,
+            };
           } else {
-            updatedPackageQuotes.push(newPkg);
+            // New shipment, assign FirstBidPrice from grandTotalValue
+            updatedPackageQuotes.push({
+              ...newPkg,
+              quotes: newPkg.quotes.map((q) => ({
+                ...q,
+                FirstBidPrice: q.grandTotalValue || 0,
+              })),
+            });
           }
         }
       }
@@ -138,6 +218,7 @@ const createQuote = async (req, res) => {
 
       const updatedData = {
         ...current,
+        company: company,
         quotes: updatedQuotes,
         package_quotes: updatedPackageQuotes,
         road_transport_quotes: updatedRoadQuotes,
@@ -145,14 +226,24 @@ const createQuote = async (req, res) => {
 
       await existing.update({ data: updatedData });
     } else {
+      const updatedPackageQuotes = (package_quotes || []).map((pkg) => ({
+        ...pkg,
+        quotes: pkg.quotes.map((q) => ({
+          ...q,
+          FirstBidPrice: q.grandTotalValue,
+        })),
+      }));
+
       const payload = {
         rfq_id,
         vendor_id,
+        company,
         data: {
           rfq_id,
           vendor_id,
+          company,
           quotes: quotes || [],
-          package_quotes: package_quotes || [],
+          package_quotes: updatedPackageQuotes || [],
           road_transport_quotes: road_transport_quotes || [],
         },
       };
@@ -198,6 +289,12 @@ const createQuote = async (req, res) => {
         rfqRecord.data.auction_number
           ? rfqRecord.data.auction_number + "-" + rfqRecord.data.title
           : rfqRecord.data.rfq_number + "-" + rfqRecord.data.title
+      );
+
+      await sendVendorQuoteSubmissionMail(
+        vendor.email,
+        vendor.name,
+        rfqRecord.data.title
       );
     }
 
@@ -251,6 +348,13 @@ const getQuotesByRfq = async (req, res) => {
 
       if (q.data.negotiation) {
         result.negotiation = q.data.negotiation;
+      }
+
+      if (q.data.acceptedDetails) {
+        result.acceptedDetails = q.data.acceptedDetails;
+      }
+      if (q.data.hodAcceptRequestDetails) {
+        result.hodAcceptRequestDetails = q.data.hodAcceptRequestDetails;
       }
 
       return result;

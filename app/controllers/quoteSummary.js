@@ -2,7 +2,15 @@ const { QuotesData, RfqData } = require("../models");
 //const { Op } = require("sequelize");
 const { Op, Sequelize } = require("sequelize");
 const mailQueue = require("../queues/mailQueue");
-const { sendVendorNegotiationMail } = require("../queues/mailer");
+const {
+  sendVendorNegotiationMail,
+  sendBuyerNegotiationConfirmationMail,
+  sendVendorQuoteAcceptedMail,
+  sendBuyerQuoteAcceptanceConfirmationMail,
+  sendHodApprovalRequestedMail,
+  sendHodApprovedMail,
+  sendHodRejectedMail,
+} = require("../queues/mailer");
 
 const getQuoteSummary = async (req, res) => {
   try {
@@ -96,7 +104,7 @@ const getQuoteSummaryById = async (req, res) => {
           if (!packageRankMap[key]) packageRankMap[key] = [];
           packageRankMap[key].push({
             vendor_id: entry.vendor_id,
-            total: parseFloat(q.total_charges || 0),
+            total: parseFloat(q.grandTotalValue || 0),
           });
         });
       });
@@ -190,7 +198,10 @@ const getQuoteSummaryById = async (req, res) => {
               vendor_name: vendor?.name || `Vendor ${entry.vendor_id}`,
               vendor_email: vendor?.email || "",
               ...q,
-              total: parseFloat(q.total_charges || 0),
+              total: parseFloat(q.grandTotalValue || 0),
+              negotiation: entry.negotiation,
+              acceptedDetails: entry.acceptedDetails || {},
+              hodAcceptRequestDetails: entry.hodAcceptRequestDetails || {},
             });
           });
         });
@@ -214,6 +225,11 @@ const getQuoteSummaryById = async (req, res) => {
         rfq_number: rfq.rfq_number,
         title: rfq.data?.title,
         description: rfq.data?.description,
+        type: rfq.data?.type,
+        hideCurrentBidPrice: rfq.data?.hide_current_bid_price,
+        createdDate: rfq.createdAt,
+        openDateTime: rfq.data?.open_date_time,
+        closeDateTime: rfq.data?.close_date_time,
         shipments: shipmentSummary,
         isShipmentBased: true,
         shipmentType: rfq.data?.subindustry,
@@ -227,6 +243,7 @@ const getQuoteSummaryById = async (req, res) => {
             company: vendor?.company || "-",
             email: vendor?.email || "",
             package_quotes: entry.package_quotes || [],
+            negotiation: entry?.negotiation || {},
             quotes: entry.quotes || [],
           };
         }),
@@ -272,6 +289,15 @@ const updateRfqStatus = async (req, res) => {
       case "reject":
         status = "rejected";
         break;
+      case "requested_hod_approval":
+        status = "requested_hod_approval";
+        break;
+      case "hod_approved":
+        status = "hod_approved";
+        break;
+      case "hod_rejected":
+        status = "hod_rejected";
+        break;
       default:
         return res.status(400).json({ error: "Invalid action" });
     }
@@ -282,62 +308,429 @@ const updateRfqStatus = async (req, res) => {
     };
 
     await rfq.update({ status, data: updatedData });
+    if (status === "hod_approved") {
+      const requestedForHodApprovalQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number, vendor_id: req.body.vendors[0] },
+      });
+      if (!requestedForHodApprovalQuote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      const qData = { ...requestedForHodApprovalQuote.data };
+      qData.hodAcceptRequestDetails = {
+        requested_airline: req.body.requestedAirline[0] || "",
+        remarks: qData.hodAcceptRequestDetails.remarks || "",
+        accepted_at: qData.hodAcceptRequestDetails.accepted_at || "",
+        status: "hod_approved",
+        hod_msg: req.body.hod_msg || "",
+        hod_approved_on: new Date(),
+        hod_email: req.body.hod_email || "",
+        hod_name: req.body.hod_name || "",
+      };
+      await requestedForHodApprovalQuote.update({ data: qData });
+
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+      try {
+        await sendHodApprovedMail(
+          rfqRecordtst?.data?.buyer?.email,
+          rfqRecordtst?.data?.buyer?.name,
+          rfq_number,
+          req.body.requestedAirline[0],
+          req.body.hod_name,
+          req.body.hod_msg
+        );
+
+        console.log(
+          `📩 HOD Approval mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`
+        );
+      } catch (err) {
+        console.error(
+          `❌ Failed to send HOD Approval mail to ${rfqRecordtst?.data?.buyer?.email}`,
+          err.message
+        );
+      }
+    }
+    if (status === "hod_rejected") {
+      const requestedForHodApprovalQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number, vendor_id: req.body.vendors[0] },
+      });
+      if (!requestedForHodApprovalQuote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      const qData = { ...requestedForHodApprovalQuote.data };
+      qData.hodAcceptRequestDetails = {
+        requested_airline: req.body.requestedAirline[0] || "",
+        remarks: qData.hodAcceptRequestDetails.remarks || "",
+        accepted_at: qData.hodAcceptRequestDetails.accepted_at || "",
+        status: "hod_rejected",
+        hod_msg: req.body.hod_msg || "",
+        hod_rejected_on: new Date(),
+        hod_email: req.body.hod_email || "",
+        hod_name: req.body.hod_name || "",
+      };
+      await requestedForHodApprovalQuote.update({ data: qData });
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+      try {
+        await sendHodRejectedMail(
+          rfqRecordtst?.data?.buyer?.email,
+          rfqRecordtst?.data?.buyer?.name,
+          rfq_number,
+          req.body.requestedAirline[0],
+          req.body.hod_name,
+          req.body.hod_msg
+        );
+
+        console.log(
+          `📩 HOD Rejected mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`
+        );
+      } catch (err) {
+        console.error(
+          `❌ Failed to send HOD Rejected mail to ${rfqRecordtst?.data?.buyer?.email}`,
+          err.message
+        );
+      }
+    }
+    if (status === "requested_hod_approval") {
+      const requestedForHodApprovalQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number, vendor_id: req.body.vendors[0] },
+      });
+      if (!requestedForHodApprovalQuote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      const qData = { ...requestedForHodApprovalQuote.data };
+      qData.hodAcceptRequestDetails = {
+        requested_airline: req.body.requestedAirline[0] || "",
+        remarks: req.body.remarks || "",
+        accepted_at: new Date(),
+        status: "requested_hod_approval",
+        hod_email: req.body.hod_email || "",
+        hod_name: req.body.hod_name || "",
+      };
+      await requestedForHodApprovalQuote.update({ data: qData });
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+      try {
+        await sendHodApprovalRequestedMail(
+          req.body.hod_email,
+          req.body.hod_name,
+          rfq_number,
+          req.body.requestedAirline[0],
+          rfqRecordtst?.data?.buyer?.name,
+          req.body.remarks
+        );
+
+        console.log(
+          `📩 HOD Approval Requested mail sent to ${req.body.hod_email}`
+        );
+      } catch (err) {
+        console.error(
+          `❌ Failed to send HOD Approval Requested mail to ${req.body.hod_email}`,
+          err.message
+        );
+      }
+    }
+
+    if (status === "accepted") {
+      const acceptedVendorQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number, vendor_id: req.body.vendors[0] },
+      });
+      if (!acceptedVendorQuote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      const qData = { ...acceptedVendorQuote.data };
+      qData.acceptedDetails = {
+        accepted_airline: req.body.acceptedAirline[0] || "",
+        remarks: req.body.remarks || "",
+        accepted_at: new Date(),
+        vendor_id: req.body.vendors[0],
+      };
+      await acceptedVendorQuote.update({ data: qData });
+
+      // Send Quote Confirmation email to vendor
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+      const existingVendors = rfqRecordtst.data.vendors || [];
+      console.log("Existing vendors:", existingVendors);
+      const vendor = existingVendors.find((v) => v.id == req.body.vendors[0]);
+      console.log("Vendor email for quote confirmation:", vendor);
+
+      try {
+        await sendVendorQuoteAcceptedMail(
+          vendor.email,
+          vendor.name,
+          rfq_number
+        );
+        console.log(`📩 Quote Confirmation mail sent to ${vendor.email}`);
+      } catch (err) {
+        console.error(
+          `❌ Failed to send Quote Confirmation mail to ${vendor.email}`,
+          err.message
+        );
+      }
+      await sendBuyerQuoteAcceptanceConfirmationMail(
+        rfqRecordtst?.data?.buyer?.email,
+        rfqRecordtst?.data?.buyer?.name,
+        rfq_number,
+        vendor.name
+      );
+    }
+
+    // if (status === "negotiation") {
+    //   const { negotiations = [] } = req.body;
+    //   console.log("Negotiations data:", negotiations);
+    //   const allQuotes = await QuotesData.findAll({
+    //     where: { rfq_id: rfq_number },
+    //   });
+    //   for (const quote of allQuotes) {
+    //     const qData = { ...quote.data };
+
+    //     if (!Array.isArray(qData.negotiation)) {
+    //       qData.negotiation = [];
+    //       negotiations.forEach((neg) => {
+    //         // Only push if vendor_id matches qData.vendor_id
+    //         if (qData.vendor_id === neg.vendor_id) {
+    //           qData.negotiation.push({
+    //             ...neg,
+    //             requested_at: new Date(),
+    //           });
+    //           console.log(
+    //             `🟢 Added negotiation for vendor ${neg.vendor_id}, airline: ${neg.airline_name}`
+    //           );
+    //         } else {
+    //           console.log(
+    //             `⚪ Skipped negotiation for vendor ${neg.vendor_id} (not matching qData.vendor_id ${qData.vendor_id})`
+    //           );
+    //         }
+    //       });
+    //       await quote.update({ data: qData });
+    //       continue;
+    //     }
+
+    //     const negotiationEntryIndex = qData.negotiation.find((n) => {
+    //       console.log("Comparing negotiation entries:", n.airline_name);
+    //       let aaa;
+    //       if (
+    //         n.airline_name ===
+    //         negotiations.some((ne) => {
+    //           console.log("Negotiation airline name:", ne.airline_name);
+    //           ne.airline_name;
+    //         })
+    //       ) {
+    //         aaa = n.airline_name;
+    //         //return n;
+    //       }
+    //       console.log("aaa value", aaa);
+    //     });
+
+    //     console.log("Negotiation entry index:", negotiationEntryIndex);
+
+    //     if (negotiationEntryIndex) {
+    //       // 🔁 Update existing negotiation entry
+    //       qData.negotiation[negotiationEntryIndex] = {
+    //         ...qData.negotiation[negotiationEntryIndex],
+    //         ...negotiations.find(
+    //           (n) =>
+    //             n.vendor_id === quote.vendor_id &&
+    //             n.airline_name === quote.airline_name
+    //         ),
+    //         updated_at: new Date(),
+    //       };
+    //       console.log(
+    //         "🟡 Negotiation updated:",
+    //         qData.negotiation[negotiationEntryIndex]
+    //       );
+    //     } else {
+    //       // ➕ Add new negotiation entries
+    //       qData.negotiation.push(
+    //         ...negotiations.map((entry) => ({
+    //           ...entry,
+    //           requested_at: new Date(),
+    //         }))
+    //       );
+    //       console.log("🟢 New negotiations added:", negotiations);
+    //     }
+
+    //     if (negotiationEntry) {
+    //       // const negotiationArray = Array.isArray(negotiationEntry)
+    //       //   ? negotiationEntry
+    //       //   : [negotiationEntry];
+
+    //       // const newNegotiations = negotiationArray.map((entry) => ({
+    //       //   vendor_id: entry.vendor_id,
+    //       //   airline_name: entry.airline_name,
+    //       //   last_purchase_price: entry.last_purchase_price,
+    //       //   remarks: entry.remarks,
+    //       //   requested_at: new Date(),
+    //       // }));
+
+    //       // console.log("New negotiations to be added:", newNegotiations);
+
+    //       // 🟢 Merge with existing negotiations (if any)
+    //       // const existingNegotiations = Array.isArray(qData.negotiation)
+    //       //   ? qData.negotiation
+    //       //   : [];
+
+    //       // qData.negotiation = [...existingNegotiations, ...newNegotiations];
+
+    //       // if (!Array.isArray(qData.negotiation)) {
+    //       //   qData.negotiation = [];
+    //       // }
+
+    //       // if (Array.isArray(negotiationArray) && negotiationArray.length > 0) {
+    //       //   qData.negotiation = negotiations;
+    //       // }
+
+    //       if (Array.isArray(qData.quotes)) {
+    //         qData.quotes = qData.quotes.map((q) => ({
+    //           ...q,
+    //           status: "negotiation_requested",
+    //         }));
+    //       }
+
+    //       await quote.update({ data: qData });
+
+    //       // ✅ Send negotiation email to vendor
+    //       const rfqRecordtst = await RfqData.findOne({
+    //         where: { rfq_number: rfq_number },
+    //       });
+    //       const existingVendors = rfqRecordtst.data.vendors || [];
+    //       console.log("Existing vendors:", existingVendors);
+    //       const vendor = existingVendors.find(
+    //         (v) => v.id == negotiationEntry.vendor_id
+    //       );
+    //       console.log("Vendor email for negotiation:", vendor);
+
+    //       try {
+    //         await sendVendorNegotiationMail(
+    //           vendor.email,
+    //           vendor.name,
+    //           rfq_number,
+    //           negotiationEntry.last_purchase_price,
+    //           negotiationEntry.remarks
+    //         );
+    //         console.log(`📩 Negotiation mail sent to ${vendor.email}`);
+    //       } catch (err) {
+    //         console.error(
+    //           `❌ Failed to send negotiation mail to ${vendor.email}`,
+    //           err.message
+    //         );
+    //       }
+    //       await sendBuyerNegotiationConfirmationMail(
+    //         rfqRecordtst?.data?.buyer?.email,
+    //         rfqRecordtst?.data?.buyer?.name,
+    //         rfq_number,
+    //         vendor.name
+    //       );
+    //     }
+    //   }
+    // }
 
     if (status === "negotiation") {
       const { negotiations = [] } = req.body;
-      console.log("Negotiations data:", negotiations);
+      console.log("📥 Incoming Negotiations:", negotiations);
+
       const allQuotes = await QuotesData.findAll({
         where: { rfq_id: rfq_number },
       });
+
       for (const quote of allQuotes) {
         const qData = { ...quote.data };
+        const vendorId = qData.vendor_id;
 
-        const negotiationEntry = negotiations.find(
-          (n) => n.vendor_id == quote.vendor_id
+        // Ensure negotiation array exists
+        if (!Array.isArray(qData.negotiation)) qData.negotiation = [];
+
+        // Filter negotiations belonging to this vendor
+        const vendorNegotiations = negotiations.filter(
+          (n) => n.vendor_id === vendorId
         );
 
-        if (negotiationEntry) {
-          qData.negotiation = {
-            last_purchase_price: negotiationEntry.last_purchase_price,
-            remarks: negotiationEntry.remarks,
-            requested_at: new Date(),
-          };
+        if (vendorNegotiations.length === 0) continue;
 
-          if (Array.isArray(qData.quotes)) {
-            qData.quotes = qData.quotes.map((q) => ({
-              ...q,
-              status: "negotiation_requested",
-            }));
-          }
-
-          await quote.update({ data: qData });
-
-          // ✅ Send negotiation email to vendor
-          const rfqRecordtst = await RfqData.findOne({
-            where: { rfq_number: rfq_number },
-          });
-          const existingVendors = rfqRecordtst.data.vendors || [];
-          console.log("Existing vendors:", existingVendors);
-          const vendor = existingVendors.find(
-            (v) => v.id == negotiationEntry.vendor_id
+        for (const neg of vendorNegotiations) {
+          const existingIndex = qData.negotiation.findIndex(
+            (n) => n.airline_name === neg.airline_name
           );
-          console.log("Vendor email for negotiation:", vendor);
 
-          try {
-            await sendVendorNegotiationMail(
-              vendor.email,
-              vendor.name,
-              rfq_number,
-              negotiationEntry.last_purchase_price,
-              negotiationEntry.remarks
+          console.log("existing index value:", existingIndex);
+
+          if (existingIndex >= 0) {
+            // 🔁 Update existing negotiation
+            const updatedNegotiation = {
+              ...qData.negotiation[existingIndex],
+              ...neg,
+              updated_at: new Date(),
+            };
+            qData.negotiation[existingIndex] = updatedNegotiation;
+            await quote.update({ data: updatedNegotiation });
+            console.log(
+              `🟡 Updated negotiation for vendor ${vendorId}, airline ${neg.airline_name}`
             );
-            console.log(`📩 Negotiation mail sent to ${vendor.email}`);
-          } catch (err) {
-            console.error(
-              `❌ Failed to send negotiation mail to ${vendor.email}`,
-              err.message
+          } else {
+            // ➕ Add new negotiation
+            // qData.negotiation.push({
+            //   ...neg,
+            //   requested_at: new Date(),
+            // });
+            const newNegotiation = {
+              ...neg,
+              requested_at: new Date(),
+            };
+            qData.negotiation.push(newNegotiation);
+            //qData.negotiation[existingIndex] = updatedNegotiation;
+            //await quote.update({ data: qData });
+            quote.set("data", qData);
+            quote.changed("data", true);
+            await quote.save();
+            console.log(
+              `🟢 Added new negotiation for vendor ${vendorId}, airline ${neg.airline_name}`
             );
           }
+        }
+
+        // 🧾 Optionally mark quote status
+        if (Array.isArray(qData.quotes)) {
+          qData.quotes = qData.quotes.map((q) => ({
+            ...q,
+            status: "negotiation_requested",
+          }));
+        }
+
+        // 💾 Save changes
+        await quote.update({ data: qData });
+
+        // ✉️ Send mails (optional)
+        const rfqRecord = await RfqData.findOne({ where: { rfq_number } });
+        const existingVendors = rfqRecord?.data?.vendors || [];
+        const vendor = existingVendors.find((v) => v.id == vendorId);
+
+        if (vendor) {
+          for (const neg of vendorNegotiations) {
+            try {
+              await sendVendorNegotiationMail(
+                vendor.email,
+                vendor.name,
+                rfq_number,
+                neg.last_purchase_price,
+                neg.remarks
+              );
+              console.log(`📩 Mail sent to ${vendor.email}`);
+            } catch (err) {
+              console.error(`❌ Failed mail for ${vendor.email}:`, err.message);
+            }
+          }
+
+          await sendBuyerNegotiationConfirmationMail(
+            rfqRecord?.data?.buyer?.email,
+            rfqRecord?.data?.buyer?.name,
+            rfq_number,
+            vendor.name
+          );
         }
       }
     }
