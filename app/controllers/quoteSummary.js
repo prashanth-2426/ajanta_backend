@@ -225,6 +225,8 @@ const getQuoteSummaryById = async (req, res) => {
         rfq_number: rfq.rfq_number,
         title: rfq.data?.title,
         description: rfq.data?.description,
+        country: rfq.data?.country,
+        subindustry: rfq.data?.subindustry,
         type: rfq.data?.type,
         hideCurrentBidPrice: rfq.data?.hide_current_bid_price,
         createdDate: rfq.createdAt,
@@ -232,6 +234,28 @@ const getQuoteSummaryById = async (req, res) => {
         closeDateTime: rfq.data?.close_date_time,
         shipments: shipmentSummary,
         isShipmentBased: true,
+        eximMode: rfq.data?.exim_mode,
+        movement_type:
+          "Airport (" +
+          rfq.data?.origin_airport +
+          ") to " +
+          " Airport (" +
+          rfq.data?.destination_airport +
+          ")",
+        incoterm_exp_air: rfq.data?.incoterm_exp_air,
+        origin_airport: rfq.data?.origin_airport,
+        destination_airport: rfq.data?.destination_airport,
+        origin_address: rfq.data?.origin_address,
+        destination_address: rfq.data?.destination_address,
+        stuffing_location: rfq.data?.factoryLocation,
+        destuffing_location: rfq.data?.destuffing_location,
+        material: rfq.data?.material,
+        hs_code: rfq.data?.hs_code,
+        totalGrossWeight: rfq.data?.package_summary?.totalGrossWeight,
+        totalVolumetricWeight: rfq.data?.package_summary?.totalVolumetricWeight,
+        value_of_shipment: rfq.data?.package_summary?.value_of_shipment,
+        volumetricFactor: rfq.data?.package_summary?.volumetricFactor,
+        package_summary: rfq.data?.package_summary,
         shipmentType: rfq.data?.subindustry,
         vendors: rfqQuotes.map((entry) => {
           const vendor = rfq.data?.vendors?.find(
