@@ -10,7 +10,9 @@ const {
   sendHodApprovalRequestedMail,
   sendHodApprovedMail,
   sendHodRejectedMail,
+  sendQuoteDetailsToMarketingTeam,
 } = require("../queues/mailer");
+const path = require("path");
 
 const getQuoteSummary = async (req, res) => {
   try {
@@ -202,6 +204,8 @@ const getQuoteSummaryById = async (req, res) => {
               negotiation: entry.negotiation,
               acceptedDetails: entry.acceptedDetails || {},
               hodAcceptRequestDetails: entry.hodAcceptRequestDetails || {},
+              sharedtoMarketingTeamDetails:
+                entry.sharedtoMarketingTeamDetails || {},
             });
           });
         });
@@ -295,6 +299,8 @@ const getQuoteSummaryById = async (req, res) => {
 const updateRfqStatus = async (req, res) => {
   const { rfq_number, action } = req.body;
 
+  const file = req.file ? req.file.filename : null;
+
   try {
     const rfq = await RfqData.findOne({ where: { rfq_number } });
     if (!rfq) return res.status(404).json({ error: "RFQ not found" });
@@ -321,6 +327,9 @@ const updateRfqStatus = async (req, res) => {
         break;
       case "hod_rejected":
         status = "hod_rejected";
+        break;
+      case "shared_to_marketing_team":
+        status = "shared_to_marketing_team";
         break;
       default:
         return res.status(400).json({ error: "Invalid action" });
@@ -419,19 +428,20 @@ const updateRfqStatus = async (req, res) => {
     }
     if (status === "requested_hod_approval") {
       const requestedForHodApprovalQuote = await QuotesData.findOne({
-        where: { rfq_id: rfq_number, vendor_id: req.body.vendors[0] },
+        where: { rfq_id: rfq_number },
       });
       if (!requestedForHodApprovalQuote) {
         return res.status(404).json({ message: "Quote not found" });
       }
       const qData = { ...requestedForHodApprovalQuote.data };
       qData.hodAcceptRequestDetails = {
-        requested_airline: req.body.requestedAirline[0] || "",
+        //requested_airline: req.body.requestedAirline[0] || "",
         remarks: req.body.remarks || "",
         accepted_at: new Date(),
         status: "requested_hod_approval",
         hod_email: req.body.hod_email || "",
         hod_name: req.body.hod_name || "",
+        attached_file: file || "",
       };
       await requestedForHodApprovalQuote.update({ data: qData });
       const rfqRecordtst = await RfqData.findOne({
@@ -442,7 +452,7 @@ const updateRfqStatus = async (req, res) => {
           req.body.hod_email,
           req.body.hod_name,
           rfq_number,
-          req.body.requestedAirline[0],
+          //req.body.requestedAirline[0],
           rfqRecordtst?.data?.buyer?.name,
           req.body.remarks
         );
@@ -453,6 +463,64 @@ const updateRfqStatus = async (req, res) => {
       } catch (err) {
         console.error(
           `❌ Failed to send HOD Approval Requested mail to ${req.body.hod_email}`,
+          err.message
+        );
+      }
+    }
+
+    if (status === "shared_to_marketing_team") {
+      const quoteData = await QuotesData.findOne({
+        where: { rfq_id: rfq_number },
+      });
+      if (!quoteData) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      const qData = { ...quoteData.data };
+      qData.sharedtoMarketingTeamDetails = {
+        remarks: req.body.remarks || "",
+        accepted_at: new Date(),
+        status: "shared_to_marketing_team",
+        marketing_name: req.body.marketing_name || "",
+        marketing_email: req.body.marketing_email || "",
+        attached_file: file || "",
+      };
+      await quoteData.update({ data: qData });
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+      try {
+        const waitForFile = async (fullPath, timeout = 5000) => {
+          const fs = require("fs");
+
+          const start = Date.now();
+          while (Date.now() - start < timeout) {
+            if (fs.existsSync(fullPath)) return true;
+            await wait(200); // check every 200 ms
+          }
+          throw new Error("File not created within time limit");
+        };
+
+        const fullPath = path.join(__dirname, "..", "uploads", "rfq", file);
+
+        console.log("Waiting for file to be available at:", fullPath);
+
+        await waitForFile(fullPath); // reliably wait until file exists
+
+        await sendQuoteDetailsToMarketingTeam(
+          req.body.marketing_email,
+          req.body.marketing_name,
+          rfq_number,
+          rfqRecordtst?.data?.buyer?.name,
+          req.body.remarks,
+          file
+        );
+
+        console.log(
+          `📩 Sharing Quote Data to Marketing Team and mail sent to ${req.body.marketing_email}`
+        );
+      } catch (err) {
+        console.error(
+          `❌ Failed to send Sharing Quote Data to Marketing Team and mail sent to ${req.body.marketing_email}`,
           err.message
         );
       }

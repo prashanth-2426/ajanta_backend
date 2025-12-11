@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const path = require("path");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -470,7 +471,7 @@ const sendHodApprovalRequestedMail = async (
   hodEmail,
   hodName,
   rfqNumber,
-  airlineName,
+  //airlineName,
   buyerName,
   remarks
 ) => {
@@ -489,8 +490,6 @@ const sendHodApprovalRequestedMail = async (
           <div style="padding: 30px;">
             <p>Dear <strong>${hodName}</strong>,</p>
             <p><strong>${buyerName}</strong> has requested your approval for RFQ <strong>${rfqNumber}</strong>.</p>
-
-            <p><strong>Selected Airline:</strong> ${airlineName}</p>
             <p><strong>Remarks:</strong> ${remarks ?? "N/A"}</p>
 
             <div style="text-align: center; margin: 30px 0;">
@@ -648,6 +647,71 @@ const sendHodRejectedMail = async (
   await transporter.sendMail(mailOptions);
 };
 
+async function sendQuoteDetailsToMarketingTeam(
+  marketingEmail,
+  marketingName,
+  rfqNumber,
+  buyerName,
+  remarks,
+  attachmentFileName // new param
+) {
+  const filePath = attachmentFileName
+    ? path.join(__dirname, "..", "uploads", "rfq", attachmentFileName)
+    : null;
+
+  console.log("Preparing to send quote details to marketing team...", filePath);
+
+  const mailOptions = {
+    from: `"RFQ System" <${process.env.EMAIL_USER}>`,
+    to: marketingEmail,
+    subject: `📦 Quote Details Shared for RFQ #${rfqNumber}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+        
+        <h2 style="color: #2c3e50;">📢 Quote Shared For Marketing Team Review</h2>
+        
+        <p>Hello <strong>${marketingName}</strong>,</p>
+
+        <p>
+          The Export team has shared the quote details for 
+          <strong>RFQ #${rfqNumber}</strong>.
+        </p>
+
+        <p><strong>Buyer Name:</strong> ${buyerName}</p>
+
+        <p><strong>Remarks from Exports Team:</strong><br/>${remarks}</p>
+
+        ${
+          attachmentFileName
+            ? `
+          <p>
+            A document has been attached for your reference.<br>
+            <strong>Attachment File:</strong> ${attachmentFileName}
+          </p>
+        `
+            : ""
+        }
+
+        <p>Please review and proceed with the next steps.</p>
+
+        <br/>
+
+        <p>Regards,<br/>Exports Team</p>
+      </div>
+    `,
+    attachments: attachmentFileName
+      ? [
+          {
+            filename: attachmentFileName,
+            path: filePath,
+          },
+        ]
+      : [],
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
 module.exports = {
   sendVendorInvitation,
   sendBuyerConfirmationEmail,
@@ -660,4 +724,5 @@ module.exports = {
   sendHodApprovalRequestedMail,
   sendHodApprovedMail,
   sendHodRejectedMail,
+  sendQuoteDetailsToMarketingTeam,
 };
