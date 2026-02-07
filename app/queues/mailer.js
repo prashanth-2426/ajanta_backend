@@ -59,7 +59,7 @@ const sendVendorInvitation = async (email, name, rfqTitle) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Email sent to ${email}:`, info.response);
+    //console.log(`✅ Email sent to ${email}:`, info.response);
   } catch (err) {
     console.error(`❌ Failed to send email to ${email}:`, err.message);
   }
@@ -69,9 +69,9 @@ const sendBuyerConfirmationEmail = async (
   buyerEmail,
   buyerName,
   rfqTitle,
-  invitedVendors
+  invitedVendors,
 ) => {
-  console.log("Preparing buyer confirmation email...");
+  //console.log("Preparing buyer confirmation email...");
   const vendorList = invitedVendors
     .map((v) => `<li>${v.name} (${v.email})</li>`)
     .join("");
@@ -133,12 +133,12 @@ const sendBuyerConfirmationEmail = async (
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `✅ Buyer confirmation email sent to ${buyerEmail}:`,
-      info.response
+      info.response,
     );
   } catch (err) {
     console.error(
       `❌ Failed to send buyer email to ${buyerEmail}:`,
-      err.message
+      err.message,
     );
   }
 };
@@ -147,7 +147,7 @@ const sendBuyerQuoteNotification = async (
   buyerEmail,
   buyerName,
   vendorName,
-  rfqTitle
+  rfqTitle,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -199,11 +199,11 @@ const sendBuyerQuoteNotification = async (
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ Buyer notification sent to ${buyerEmail}:`, info.response);
+    //console.log(`✅ Buyer notification sent to ${buyerEmail}:`, info.response);
   } catch (err) {
     console.error(
       `❌ Failed to send buyer notification to ${buyerEmail}:`,
-      err.message
+      err.message,
     );
   }
 };
@@ -211,7 +211,7 @@ const sendBuyerQuoteNotification = async (
 const sendVendorQuoteSubmissionMail = async (
   vendorEmail,
   vendorName,
-  rfqTitle
+  rfqTitle,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -267,12 +267,12 @@ const sendVendorQuoteSubmissionMail = async (
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `✅ Vendor confirmation sent to ${vendorEmail}:`,
-      info.response
+      info.response,
     );
   } catch (err) {
     console.error(
       `❌ Failed to send vendor confirmation to ${vendorEmail}:`,
-      err.message
+      err.message,
     );
   }
 };
@@ -282,7 +282,7 @@ const sendVendorNegotiationMail = async (
   vendorName,
   rfqNumber,
   lastPurchasePrice,
-  remarks
+  remarks,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -331,7 +331,7 @@ const sendBuyerNegotiationConfirmationMail = async (
   buyerEmail,
   buyerName,
   rfqNumber,
-  vendorName
+  vendorName,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -377,7 +377,7 @@ const sendBuyerNegotiationConfirmationMail = async (
 const sendVendorQuoteAcceptedMail = async (
   vendorEmail,
   vendorName,
-  rfqNumber
+  rfqNumber,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -424,7 +424,7 @@ const sendBuyerQuoteAcceptanceConfirmationMail = async (
   buyerEmail,
   buyerName,
   rfqNumber,
-  vendorName
+  vendorName,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -473,7 +473,7 @@ const sendHodApprovalRequestedMail = async (
   rfqNumber,
   //airlineName,
   buyerName,
-  remarks
+  remarks,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -527,7 +527,7 @@ const sendHodApprovedMail = async (
   rfqNumber,
   airlineName,
   hodName,
-  hodMessage
+  hodMessage,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -590,7 +590,7 @@ const sendHodRejectedMail = async (
   rfqNumber,
   airlineName,
   hodName,
-  hodMessage
+  hodMessage,
 ) => {
   const mailOptions = {
     from: '"Ajanta E-Auction" <your-email@example.com>',
@@ -653,13 +653,13 @@ async function sendQuoteDetailsToMarketingTeam(
   rfqNumber,
   buyerName,
   remarks,
-  attachmentFileName // new param
+  attachmentFileName, // new param
 ) {
   const filePath = attachmentFileName
     ? path.join(__dirname, "..", "uploads", "rfq", attachmentFileName)
     : null;
 
-  console.log("Preparing to send quote details to marketing team...", filePath);
+  //console.log("Preparing to send quote details to marketing team...", filePath);
 
   const mailOptions = {
     from: `"RFQ System" <${process.env.EMAIL_USER}>`,
@@ -712,6 +712,69 @@ async function sendQuoteDetailsToMarketingTeam(
   await transporter.sendMail(mailOptions);
 }
 
+const sendVendorAuctionInvitation = async ({
+  email,
+  name,
+  rfqTitle,
+  auctionId,
+  auctionNumber,
+  startTime,
+  endTime,
+}) => {
+  const joinUrl = `https://ajantapharma.coact.co.in/login?auctionId=${auctionId}`;
+
+  const mailOptions = {
+    from: '"Ajanta E-Auction" <your-email@example.com>',
+    to: email,
+    subject: `Auction Invitation – ${rfqTitle}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; background:#f4f4f4; padding:30px;">
+        <div style="max-width:600px;margin:auto;background:#fff;border-radius:8px;">
+          
+          <div style="background:#003366;color:#fff;padding:20px;">
+            <h2>Ajantha E-Auction Platform</h2>
+          </div>
+
+          <div style="padding:25px;">
+            <p>Dear <strong>${name || "Vendor"}</strong>,</p>
+
+            <p>You are invited to participate in the following auction:</p>
+
+            <h3 style="color:#003366">${rfqTitle}</h3>
+
+            <p><b>Auction Number:</b> ${auctionNumber}</p>
+            <p><b>Auction ID:</b> ${auctionId}</p>
+
+            <p><b>Start Time:</b> ${new Date(startTime).toLocaleString()}</p>
+            <p><b>End Time:</b> ${new Date(endTime).toLocaleString()}</p>
+
+            <p style="margin-top:15px;">
+              Please use the Auction ID above to join and participate in the auction.
+            </p>
+
+            <div style="text-align:center;margin:30px 0;">
+              <a href="${joinUrl}"
+                 style="background:#007bff;color:white;padding:12px 24px;
+                 text-decoration:none;border-radius:4px;font-size:16px;">
+                Join Auction
+              </a>
+            </div>
+
+            <p>Best regards,<br/>Ajanta E-Auction Team</p>
+          </div>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    //console.log(`✅ Invitation sent to ${email}`);
+  } catch (err) {
+    console.error(`❌ Failed for ${email}`, err.message);
+  }
+};
+
 module.exports = {
   sendVendorInvitation,
   sendBuyerConfirmationEmail,
@@ -725,4 +788,5 @@ module.exports = {
   sendHodApprovedMail,
   sendHodRejectedMail,
   sendQuoteDetailsToMarketingTeam,
+  sendVendorAuctionInvitation,
 };

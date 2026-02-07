@@ -13,6 +13,10 @@ const {
   sendVendorInvitation,
   sendBuyerConfirmationEmail,
 } = require("../queues/mailer");
+let uuidv4;
+import("uuid").then((m) => {
+  uuidv4 = m.v4;
+});
 
 const createRFQWithAttachments = async (req, res) => {
   const t = await RFQ.sequelize.transaction();
@@ -75,7 +79,7 @@ const createRFQ = async (req, res) => {
           quote_count: fullData.quote_count || 0,
           data: fullData,
         },
-        { transaction: t }
+        { transaction: t },
       );
     } else {
       // Set default status for auction entries
@@ -93,26 +97,52 @@ const createRFQ = async (req, res) => {
           quote_count: fullData.quote_count || 0,
           data: fullData,
         },
-        { transaction: t }
+        { transaction: t },
       );
 
       if (identifier === "auction_number") {
-        await RfqData.update(
+        //Here need to call socks controller and  create an auction_data object and update data object with that
+
+        const auctionPayload = {
+          id: uuidv4(),
+          bids: {},
+          mode: fullData.type || "reverse",
+          title: fullData.title || fullData.rfq_title,
+          buyerId: "",
+          endTime: fullData.close_date_time,
+          invited: Array.isArray(fullData.vendors)
+            ? fullData.vendors.map((v) => v.email).filter(Boolean)
+            : [],
+          startTime: fullData.open_date_time,
+          auction_number: fullData.auction_number,
+        };
+
+        //console.log("Creating auction with payload:", auctionPayload);
+
+        const rfqRecord = await RfqData.findOne({
+          where: { rfq_number: fullData.rfq_number },
+          transaction: t,
+        });
+
+        const existingData = rfqRecord.data || {};
+
+        await rfqRecord.update(
           {
             status: "auctioned",
             form_type: "auctioned",
+            data: {
+              ...existingData,
+              auction_data: auctionPayload,
+            },
           },
-          {
-            where: { rfq_number: fullData.rfq_number },
-            transaction: t,
-          }
+          { transaction: t },
         );
       }
     }
 
     await t.commit();
     if (fullData?.vendors?.length && fullData.form_type != "draft") {
-      console.log("Scheduling vendor invitations...", fullData.form_type);
+      //console.log("Scheduling vendor invitations...", fullData.form_type);
       fullData.vendors.forEach((vendor) => {
         sendVendorInvitation(vendor.email, vendor.name, fullData.title);
       });
@@ -120,7 +150,7 @@ const createRFQ = async (req, res) => {
         fullData.buyer.email,
         fullData.buyer.name,
         rfqData.title,
-        fullData.vendors
+        fullData.vendors,
       );
     }
     return res
@@ -144,13 +174,13 @@ const getAllRFQs = async (req, res) => {
     });
     let formatted = rfqs.map((entry) => entry.data);
     if (email) {
-      console.log("Filtering RFQs by vendor email:", email);
+      //console.log("Filtering RFQs by vendor email:", email);
       formatted = formatted.filter(
         (rfq) =>
           Array.isArray(rfq.vendors) &&
           rfq.vendors.some(
-            (vendor) => vendor.email?.toLowerCase() === email.toLowerCase()
-          )
+            (vendor) => vendor.email?.toLowerCase() === email.toLowerCase(),
+          ),
       );
     }
     res.status(200).json(formatted);
@@ -161,17 +191,25 @@ const getAllRFQs = async (req, res) => {
 };
 
 const getRFQById = async (req, res) => {
-  console.log("RFQ ID:", req.params.id);
-  console.log("source value", req.query.source);
+  const { id } = req.params;
+
+  //console.log("Get RFQ Data with id:", id);
+
   try {
-    const rfq = await RFQ.findByPk(req.params.id, {
-      include: [User, RFQItem, RFQTransportAir, RFQTransportSea],
+    const rfqRecord = await RfqData.findOne({
+      where: { rfq_number: id },
     });
-    if (!rfq)
-      return res.status(404).json({ isSuccess: false, msg: "RFQ not found" });
-    return res.json({ isSuccess: true, rfq });
+
+    if (!rfqRecord) {
+      throw new Error("RFQ record not found");
+    }
+
+    return res.json({ isSuccess: true, rfqRecord });
   } catch (error) {
-    return res.status(500).json({ isSuccess: false, error: error.message });
+    return res.status(500).json({
+      isSuccess: false,
+      error: error.message,
+    });
   }
 };
 

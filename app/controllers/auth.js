@@ -123,16 +123,28 @@ const login = async (req, res) => {
 };
 
 const logout = async (req, res) => {
-  const user = await User.findOne({
-    where: { email: req.user.email, token: req.token },
-  });
+  try {
+    const user = await User.findOne({
+      where: { email: req.user?.email, token: req.token },
+    });
 
-  user.token = null;
-  await user.save();
+    // If user not found → just return success without crashing
+    if (!user) {
+      return res
+        .status(200)
+        .json({ isSuccess: true, msg: "Already logged out or invalid token" });
+    }
 
-  return res
-    .status(200)
-    .json({ isSuccess: true, msg: "Successfully logged out!" });
+    // Safely remove token
+    await user.update({ token: null });
+
+    return res
+      .status(200)
+      .json({ isSuccess: true, msg: "Successfully logged out!" });
+  } catch (error) {
+    console.error("Logout Error:", error);
+    return res.status(500).json({ isSuccess: false, msg: "Server error" });
+  }
 };
 
 const validateEmail = async (req, res) => {
@@ -153,30 +165,31 @@ const validateEmail = async (req, res) => {
 };
 
 const updatePassword = async (req, res) => {
-  const { email, password, newPassword } = req.body;
+  const { email, newPassword } = req.body;
+  console.log("Update Password Request:", req.body);
 
   const user = await User.findOne({ where: { email: email } });
   if (user) {
-    const validPass = await bcrypt.compare(password, user.password);
-    if (validPass) {
-      const todayDate = new Date();
-      const result = todayDate.setDate(
-        todayDate.getDate() + process.env.PASSWORDEXPIRY
-      );
+    //const validPass = await bcrypt.compare(password, user.password);
+    //if (validPass) {
+    const todayDate = new Date();
+    const result = todayDate.setDate(
+      todayDate.getDate() + process.env.PASSWORDEXPIRY
+    );
 
-      user.password = newPassword;
-      user.passwordExpiry = new Date(result);
-      await user.save();
+    user.password = newPassword;
+    user.passwordExpiry = new Date(result);
+    await user.save();
 
-      return res.json({
-        isSuccess: true,
-        msg: "Password has been updated successfully",
-      });
-    } else {
-      return res
-        .status(400)
-        .json({ isSuccess: false, msg: "Old Password does not match!" });
-    }
+    return res.json({
+      isSuccess: true,
+      msg: "Password has been updated successfully",
+    });
+    // } else {
+    //   return res
+    //     .status(400)
+    //     .json({ isSuccess: false, msg: "Old Password does not match!" });
+    // }
   } else {
     return res.status(403).json({
       isSuccess: false,

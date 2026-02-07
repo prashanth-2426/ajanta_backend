@@ -1,6 +1,13 @@
 require("dotenv").config();
 const createError = require("http-errors");
 const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+let uuidv4;
+import("uuid").then((m) => {
+  uuidv4 = m.v4;
+});
+//const { v4: uuidv4 } = require("uuid");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 const logger = require("morgan");
@@ -9,11 +16,19 @@ const routers = require("./app/routes");
 
 const app = express();
 
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*" },
+});
+
 // view engine setup
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "jade");
 
 app.use(logger("dev"));
+const cors = require("cors");
+
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -42,4 +57,7 @@ app.use(function (err, req, res, next) {
   res.render("error");
 });
 
-module.exports = app;
+const socksController = require("./app/controllers/socks");
+socksController.init({ io, uuid: () => uuidv4() });
+
+module.exports = { app, server };

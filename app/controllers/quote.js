@@ -121,7 +121,7 @@ const createQuote = async (req, res) => {
       where: {
         rfq_id,
         [Op.and]: Sequelize.literal(
-          `JSON_UNQUOTE(JSON_EXTRACT(data, '$.company')) = '${company}'`
+          `JSON_UNQUOTE(JSON_EXTRACT(data, '$.company')) = '${company}'`,
         ),
       },
     });
@@ -135,8 +135,8 @@ const createQuote = async (req, res) => {
         const existingCompany = existingVendor?.company;
         const newCompany = newVendor.company;
 
-        console.log("Existing Company:", existingCompany);
-        console.log("New Company:", newCompany);
+        //console.log("Existing Company:", existingCompany);
+        //console.log("New Company:", newCompany);
 
         // 🚫 If both vendors belong to the same company but are different users
         if (
@@ -175,7 +175,7 @@ const createQuote = async (req, res) => {
           const shipmentIndex = newPkg.shipment_index;
 
           const existingPkgIndex = updatedPackageQuotes.findIndex(
-            (pkg) => pkg.shipment_index === shipmentIndex
+            (pkg) => pkg.shipment_index === shipmentIndex,
           );
 
           if (existingPkgIndex !== -1) {
@@ -274,7 +274,7 @@ const createQuote = async (req, res) => {
       });
 
       // Notify RFQ creator about new quote via mail
-      console.log("buyer email found", rfqRecord.data.buyer.email);
+      //console.log("buyer email found", rfqRecord.data.buyer.email);
       const vendor = rfqRecord.data.vendors.find((v) => v.id === vendor_id);
       await sendBuyerQuoteNotification(
         rfqRecord.data.buyer.email,
@@ -288,13 +288,13 @@ const createQuote = async (req, res) => {
           vendor.name,
         rfqRecord.data.auction_number
           ? rfqRecord.data.auction_number + "-" + rfqRecord.data.title
-          : rfqRecord.data.rfq_number + "-" + rfqRecord.data.title
+          : rfqRecord.data.rfq_number + "-" + rfqRecord.data.title,
       );
 
       await sendVendorQuoteSubmissionMail(
         vendor.email,
         vendor.name,
-        rfqRecord.data.title
+        rfqRecord.data.title,
       );
     }
 

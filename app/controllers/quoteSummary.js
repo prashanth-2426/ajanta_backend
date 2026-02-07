@@ -26,11 +26,11 @@ const getQuoteSummary = async (req, res) => {
 
       const vendorsSummary = rfqQuotes.map((quoteEntry) => {
         const vendor = (rfq.data?.vendors || []).find(
-          (v) => v.id == quoteEntry.vendor_id
+          (v) => v.id == quoteEntry.vendor_id,
         );
         const total = (quoteEntry.quotes || []).reduce(
           (sum, q) => sum + (q.quoted_price || 0),
-          0
+          0,
         );
 
         return {
@@ -85,8 +85,8 @@ const getQuoteSummaryById = async (req, res) => {
         Array.isArray(entry.quotes) && entry.quotes.length > 0
           ? entry.quotes
           : Array.isArray(entry.road_transport_quotes)
-          ? entry.road_transport_quotes
-          : [];
+            ? entry.road_transport_quotes
+            : [];
 
       quoteEntries.forEach((q) => {
         const itemId = q.item_id || q.row_id;
@@ -115,7 +115,7 @@ const getQuoteSummaryById = async (req, res) => {
     const itemRanks = {};
     for (const item_id in itemRankMap) {
       const sorted = itemRankMap[item_id].sort(
-        (a, b) => a.quoted_price - b.quoted_price
+        (a, b) => a.quoted_price - b.quoted_price,
       );
       sorted.forEach((entry, idx) => {
         itemRanks[`${entry.vendor_id}_${item_id}`] = `L${idx + 1}`;
@@ -137,8 +137,8 @@ const getQuoteSummaryById = async (req, res) => {
         Array.isArray(entry.quotes) && entry.quotes.length > 0
           ? entry.quotes
           : Array.isArray(entry.road_transport_quotes)
-          ? entry.road_transport_quotes
-          : [];
+            ? entry.road_transport_quotes
+            : [];
 
       const quotesWithRank = quoteEntries.map((q) => {
         const id = q.item_id || q.row_id;
@@ -150,7 +150,7 @@ const getQuoteSummaryById = async (req, res) => {
 
       const total = quotesWithRank.reduce(
         (sum, q) => sum + (q.quoted_price || 0),
-        0
+        0,
       );
 
       const packageQuotesWithRank = (entry.package_quotes || []).map((pkg) => ({
@@ -182,7 +182,7 @@ const getQuoteSummaryById = async (req, res) => {
       (q) =>
         Array.isArray(q.package_quotes) &&
         q.package_quotes.length > 0 &&
-        q.package_quotes[0].shipment_index !== undefined
+        q.package_quotes[0].shipment_index !== undefined,
     );
 
     if (isShipmentBased) {
@@ -222,7 +222,7 @@ const getQuoteSummaryById = async (req, res) => {
             shipment_index: Number(index),
             quotes: ranked,
           };
-        }
+        },
       );
 
       return res.json({
@@ -263,7 +263,7 @@ const getQuoteSummaryById = async (req, res) => {
         shipmentType: rfq.data?.subindustry,
         vendors: rfqQuotes.map((entry) => {
           const vendor = rfq.data?.vendors?.find(
-            (v) => v.id == entry.vendor_id
+            (v) => v.id == entry.vendor_id,
           );
           return {
             vendor_id: vendor?.id || entry.vendor_id,
@@ -371,16 +371,16 @@ const updateRfqStatus = async (req, res) => {
           rfq_number,
           req.body.requestedAirline[0],
           req.body.hod_name,
-          req.body.hod_msg
+          req.body.hod_msg,
         );
 
         console.log(
-          `📩 HOD Approval mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`
+          `📩 HOD Approval mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`,
         );
       } catch (err) {
         console.error(
           `❌ Failed to send HOD Approval mail to ${rfqRecordtst?.data?.buyer?.email}`,
-          err.message
+          err.message,
         );
       }
     }
@@ -413,16 +413,16 @@ const updateRfqStatus = async (req, res) => {
           rfq_number,
           req.body.requestedAirline[0],
           req.body.hod_name,
-          req.body.hod_msg
+          req.body.hod_msg,
         );
 
         console.log(
-          `📩 HOD Rejected mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`
+          `📩 HOD Rejected mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`,
         );
       } catch (err) {
         console.error(
           `❌ Failed to send HOD Rejected mail to ${rfqRecordtst?.data?.buyer?.email}`,
-          err.message
+          err.message,
         );
       }
     }
@@ -454,16 +454,16 @@ const updateRfqStatus = async (req, res) => {
           rfq_number,
           //req.body.requestedAirline[0],
           rfqRecordtst?.data?.buyer?.name,
-          req.body.remarks
+          req.body.remarks,
         );
 
         console.log(
-          `📩 HOD Approval Requested mail sent to ${req.body.hod_email}`
+          `📩 HOD Approval Requested mail sent to ${req.body.hod_email}`,
         );
       } catch (err) {
         console.error(
           `❌ Failed to send HOD Approval Requested mail to ${req.body.hod_email}`,
-          err.message
+          err.message,
         );
       }
     }
@@ -502,7 +502,7 @@ const updateRfqStatus = async (req, res) => {
 
         const fullPath = path.join(__dirname, "..", "uploads", "rfq", file);
 
-        console.log("Waiting for file to be available at:", fullPath);
+        //console.log("Waiting for file to be available at:", fullPath);
 
         await waitForFile(fullPath); // reliably wait until file exists
 
@@ -512,16 +512,16 @@ const updateRfqStatus = async (req, res) => {
           rfq_number,
           rfqRecordtst?.data?.buyer?.name,
           req.body.remarks,
-          file
+          file,
         );
 
         console.log(
-          `📩 Sharing Quote Data to Marketing Team and mail sent to ${req.body.marketing_email}`
+          `📩 Sharing Quote Data to Marketing Team and mail sent to ${req.body.marketing_email}`,
         );
       } catch (err) {
         console.error(
           `❌ Failed to send Sharing Quote Data to Marketing Team and mail sent to ${req.body.marketing_email}`,
-          err.message
+          err.message,
         );
       }
     }
@@ -547,28 +547,28 @@ const updateRfqStatus = async (req, res) => {
         where: { rfq_number: rfq_number },
       });
       const existingVendors = rfqRecordtst.data.vendors || [];
-      console.log("Existing vendors:", existingVendors);
+      //console.log("Existing vendors:", existingVendors);
       const vendor = existingVendors.find((v) => v.id == req.body.vendors[0]);
-      console.log("Vendor email for quote confirmation:", vendor);
+      //console.log("Vendor email for quote confirmation:", vendor);
 
       try {
         await sendVendorQuoteAcceptedMail(
           vendor.email,
           vendor.name,
-          rfq_number
+          rfq_number,
         );
-        console.log(`📩 Quote Confirmation mail sent to ${vendor.email}`);
+        //console.log(`📩 Quote Confirmation mail sent to ${vendor.email}`);
       } catch (err) {
         console.error(
           `❌ Failed to send Quote Confirmation mail to ${vendor.email}`,
-          err.message
+          err.message,
         );
       }
       await sendBuyerQuoteAcceptanceConfirmationMail(
         rfqRecordtst?.data?.buyer?.email,
         rfqRecordtst?.data?.buyer?.name,
         rfq_number,
-        vendor.name
+        vendor.name,
       );
     }
 
@@ -724,7 +724,7 @@ const updateRfqStatus = async (req, res) => {
 
     if (status === "negotiation") {
       const { negotiations = [] } = req.body;
-      console.log("📥 Incoming Negotiations:", negotiations);
+      //console.log("📥 Incoming Negotiations:", negotiations);
 
       const allQuotes = await QuotesData.findAll({
         where: { rfq_id: rfq_number },
@@ -739,17 +739,17 @@ const updateRfqStatus = async (req, res) => {
 
         // Filter negotiations belonging to this vendor
         const vendorNegotiations = negotiations.filter(
-          (n) => n.vendor_id === vendorId
+          (n) => n.vendor_id === vendorId,
         );
 
         if (vendorNegotiations.length === 0) continue;
 
         for (const neg of vendorNegotiations) {
           const existingIndex = qData.negotiation.findIndex(
-            (n) => n.airline_name === neg.airline_name
+            (n) => n.airline_name === neg.airline_name,
           );
 
-          console.log("existing index value:", existingIndex);
+          //console.log("existing index value:", existingIndex);
 
           if (existingIndex >= 0) {
             // 🔁 Update existing negotiation
@@ -761,7 +761,7 @@ const updateRfqStatus = async (req, res) => {
             qData.negotiation[existingIndex] = updatedNegotiation;
             await quote.update({ data: updatedNegotiation });
             console.log(
-              `🟡 Updated negotiation for vendor ${vendorId}, airline ${neg.airline_name}`
+              `🟡 Updated negotiation for vendor ${vendorId}, airline ${neg.airline_name}`,
             );
           } else {
             // ➕ Add new negotiation
@@ -780,7 +780,7 @@ const updateRfqStatus = async (req, res) => {
             quote.changed("data", true);
             await quote.save();
             console.log(
-              `🟢 Added new negotiation for vendor ${vendorId}, airline ${neg.airline_name}`
+              `🟢 Added new negotiation for vendor ${vendorId}, airline ${neg.airline_name}`,
             );
           }
         }
@@ -809,7 +809,7 @@ const updateRfqStatus = async (req, res) => {
                 vendor.name,
                 rfq_number,
                 neg.last_purchase_price,
-                neg.remarks
+                neg.remarks,
               );
               console.log(`📩 Mail sent to ${vendor.email}`);
             } catch (err) {
@@ -821,7 +821,7 @@ const updateRfqStatus = async (req, res) => {
             rfqRecord?.data?.buyer?.email,
             rfqRecord?.data?.buyer?.name,
             rfq_number,
-            vendor.name
+            vendor.name,
           );
         }
       }
@@ -835,10 +835,10 @@ const updateRfqStatus = async (req, res) => {
 };
 
 const getPreviousAuctionsByCountryAndWeight = async (req, res) => {
-  console.log("reached backend for country and weight");
+  //console.log("reached backend for country and weight");
   const { country, totalGrossWeight } = req.params;
 
-  console.log("country:", country, "totalGrossWeight:", totalGrossWeight);
+  //console.log("country:", country, "totalGrossWeight:", totalGrossWeight);
 
   if (!country || !totalGrossWeight) {
     return res
@@ -850,7 +850,7 @@ const getPreviousAuctionsByCountryAndWeight = async (req, res) => {
     // Fetch RFQs that match country and are within ±500 of weight
     const rfqs = await RfqData.findAll();
 
-    console.log("Fetched RFQs with country matched:", rfqs.length);
+    //console.log("Fetched RFQs with country matched:", rfqs.length);
 
     const matchingRfqs = rfqs.filter((rfq) => {
       const rfqCountry = rfq.data?.country;
@@ -859,7 +859,7 @@ const getPreviousAuctionsByCountryAndWeight = async (req, res) => {
       if (!rfqWeightStr || parseFloat(rfqWeightStr) === 0) return false;
 
       const rfqWeight = parseFloat(
-        rfq.data?.package_summary?.totalGrossWeight || 0
+        rfq.data?.package_summary?.totalGrossWeight || 0,
       );
       const targetWeight = parseFloat(totalGrossWeight);
 
@@ -900,7 +900,7 @@ const getPreviousAuctionsByCountryAndWeight = async (req, res) => {
         totalGrossWeight: rfq.data?.package_summary?.totalGrossWeight,
         vendors: rfqQuotes.map((entry) => {
           const vendor = rfq.data?.vendors?.find(
-            (v) => v.id == entry.vendor_id
+            (v) => v.id == entry.vendor_id,
           );
           return {
             vendor_id: vendor?.id || entry.vendor_id,

@@ -1,5 +1,5 @@
 const { User, QuotesData, RfqData } = require("../models");
-const { Op } = require("sequelize");
+const { Op, fn, col, where } = require("sequelize");
 const sequelize = require("../models").sequelize;
 const { Sequelize } = require("sequelize");
 
@@ -17,6 +17,52 @@ module.exports = {
         where: { is_deleted: false },
       });
 
+      const rfqsWithAuction = await RfqData.findAll({
+        where: {
+          is_deleted: false,
+          auction_number: { [Op.ne]: null },
+        },
+        attributes: ["id", "rfq_number", "auction_number", "data"],
+      });
+
+      const now = new Date();
+
+      let totalAuctions = 0;
+      let liveAuctions = 0;
+      let closedAuctions = 0;
+      let scheduledAuctions = 0;
+
+      // 🔹 collect identifiers
+      const liveAuctionIds = [];
+      const closedAuctionIds = [];
+      const scheduledAuctionIds = [];
+
+      rfqsWithAuction.forEach((rfq) => {
+        const auction = rfq.data?.auction_data;
+        if (!auction) return;
+
+        totalAuctions++;
+
+        const start = new Date(auction.startTime);
+        const end = new Date(auction.endTime);
+
+        const identifier = {
+          rfq_number: rfq.rfq_number,
+          auction_number: rfq.auction_number,
+        };
+
+        if (start > now) {
+          scheduledAuctions++;
+          scheduledAuctionIds.push(identifier);
+        } else if (end < now) {
+          closedAuctions++;
+          closedAuctionIds.push(identifier);
+        } else {
+          liveAuctions++;
+          liveAuctionIds.push(identifier);
+        }
+      });
+
       const totalQuotes = await QuotesData.count();
 
       return res.json({
@@ -25,6 +71,13 @@ module.exports = {
           totalUsers,
           totalRFQs,
           totalQuotes,
+          totalAuctions,
+          liveAuctions,
+          closedAuctions,
+          scheduledAuctions,
+          liveAuctionIds,
+          closedAuctionIds,
+          scheduledAuctionIds,
         },
       });
     } catch (error) {
@@ -168,10 +221,10 @@ module.exports = {
             hod.status === "hod_approved"
               ? `HOD approved ${hod.requested_airline}`
               : hod.status === "hod_rejected"
-              ? `HOD rejected ${hod.requested_airline}`
-              : hod.requested_airline
-              ? `HOD approval requested for ${hod.requested_airline}`
-              : "New quote update",
+                ? `HOD rejected ${hod.requested_airline}`
+                : hod.requested_airline
+                  ? `HOD approval requested for ${hod.requested_airline}`
+                  : "New quote update",
           createdAt: item.createdAt,
         };
       });
@@ -190,7 +243,7 @@ module.exports = {
     try {
       const vendorId = req.query.vendor_id;
       const vendorCondition = Sequelize.literal(
-        `JSON_CONTAINS(data->'$.vendors', JSON_OBJECT('id', ${vendorId}))`
+        `JSON_CONTAINS(data->'$.vendors', JSON_OBJECT('id', ${vendorId}))`,
       );
 
       const receivedRFQs = await RfqData.count({
@@ -215,12 +268,107 @@ module.exports = {
         order: [["createdAt", "DESC"]],
       });
 
+      const rfq = await RfqData.findOne({
+        where: {
+          is_deleted: false,
+          [Sequelize.Op.and]: vendorCondition,
+        },
+        attributes: ["data"],
+      });
+
+      let vendorEmail = null;
+
+      if (rfq?.data?.vendors?.length) {
+        const vendor = rfq.data.vendors.find(
+          (v) => Number(v.id) === Number(vendorId),
+        );
+
+        vendorEmail = vendor?.email || null;
+      }
+      console.log(vendorEmail);
+
+      const auctionCondition = Sequelize.literal(
+        `JSON_CONTAINS(
+     data->'$.auction_data.invited',
+     JSON_QUOTE('${vendorEmail}')
+   )`,
+      );
+
+      const rfqsWithAuctions = await RfqData.findAll({
+        where: {
+          is_deleted: false,
+          [Sequelize.Op.and]: auctionCondition,
+        },
+        attributes: ["rfq_number", "auction_number", "data"],
+        order: [["createdAt", "DESC"]],
+      });
+
+      const now = new Date();
+
+      let totalAuctions = 0;
+      let liveAuctions = 0;
+      let closedAuctions = 0;
+      let scheduledAuctions = 0;
+
+      const auctionDetails = [];
+      const liveAuctionIds = [];
+      const closedAuctionIds = [];
+      const scheduledAuctionIds = [];
+
+      rfqsWithAuctions.forEach((rfq) => {
+        const auction = rfq.data?.auction_data;
+        if (!auction) return;
+
+        totalAuctions++;
+
+        const start = new Date(auction.startTime);
+        const end = new Date(auction.endTime);
+
+        const auctionInfo = {
+          rfq_number: rfq.rfq_number,
+          auction_number: rfq.auction_number,
+          startTime: auction.startTime,
+          endTime: auction.endTime,
+        };
+
+        let status = "live";
+
+        if (start > now) {
+          scheduledAuctions++;
+          status = "scheduled";
+          scheduledAuctionIds.push(auctionInfo);
+        } else if (end < now) {
+          closedAuctions++;
+          status = "closed";
+          closedAuctionIds.push(auctionInfo);
+        } else {
+          liveAuctions++;
+          liveAuctionIds.push(auctionInfo);
+        }
+
+        auctionDetails.push({
+          rfq_number: rfq.rfq_number,
+          auction_number: rfq.auction_number,
+          status,
+          startTime: auction.startTime,
+          endTime: auction.endTime,
+        });
+      });
+
       return res.json({
         success: true,
         data: {
           receivedRFQs,
           submittedQuotes,
           recentRFQs,
+          totalAuctions,
+          liveAuctions,
+          closedAuctions,
+          scheduledAuctions,
+          auctionDetails,
+          liveAuctionIds,
+          closedAuctionIds,
+          scheduledAuctionIds,
         },
       });
     } catch (error) {
@@ -236,7 +384,7 @@ module.exports = {
     try {
       const vendorId = req.query.vendor_id;
       const vendorCondition = Sequelize.literal(
-        `JSON_CONTAINS(data->'$.vendors', JSON_OBJECT('id', ${vendorId}))`
+        `JSON_CONTAINS(data->'$.vendors', JSON_OBJECT('id', ${vendorId}))`,
       );
 
       // Get only RFQs assigned to vendor
@@ -376,10 +524,10 @@ module.exports = {
             hod.status === "hod_approved"
               ? `HOD approved ${hod.requested_airline}`
               : hod.status === "hod_rejected"
-              ? `HOD rejected ${hod.requested_airline}`
-              : hod.requested_airline
-              ? `HOD approval requested for ${hod.requested_airline}`
-              : "Quote Updated",
+                ? `HOD rejected ${hod.requested_airline}`
+                : hod.requested_airline
+                  ? `HOD approval requested for ${hod.requested_airline}`
+                  : "Quote Updated",
 
           // ⭐ NEW fields from rfq_data
           form_type: rfqInfo.form_type || null,
