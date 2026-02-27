@@ -227,7 +227,7 @@ const sendVendorQuoteSubmissionMail = async (
       <div style="padding: 30px;">
         <p>Dear <strong>${vendorName}</strong>,</p>
 
-        <p>Thank you for submitting your quotation for the RFQ:</p>
+        <p>Thank you for submitting your quotation:</p>
 
         <h3 style="color: #007bff; margin-bottom: 10px;">${rfqTitle}</h3>
 
@@ -297,7 +297,7 @@ const sendVendorNegotiationMail = async (
           <div style="padding: 30px;">
             <p>Dear <strong>${vendorName}</strong>,</p>
             <p>The buyer has requested a negotiation for your quotation under RFQ <strong>${rfqNumber}</strong>.</p>
-            <p><strong>Last Purchase Price:</strong> ${lastPurchasePrice}</p>
+            <p><strong>Target Price:</strong> ${lastPurchasePrice}</p>
             <p><strong>Remarks:</strong> ${remarks}</p>
             <p>Please review the request and update your quotation accordingly.</p>
             <div style="text-align: center; margin: 30px 0;">
@@ -775,6 +775,119 @@ const sendVendorAuctionInvitation = async ({
   }
 };
 
+const sendAuctionResultEmails = async ({ winner, nonWinners }) => {
+  try {
+    // 🔥 1. Send Winner Email
+    await sendVendorAuctionResultEmail({
+      email: winner.email,
+      name: winner.vendor_name,
+      rfqNumber: winner.rfq_number,
+      shipmentIndex: winner.shipment_index,
+      airline: winner.airline,
+      airport: winner.airport,
+      rank: winner.rank,
+      isWinner: true,
+    });
+
+    console.log("✅ Winner email sent to:", winner.email);
+
+    // 🔥 2. Send Non-Winner Emails
+    if (nonWinners && nonWinners.length > 0) {
+      for (const vendor of nonWinners) {
+        await sendVendorAuctionResultEmail({
+          email: vendor.email,
+          name: vendor.vendor_name,
+          rfqNumber: vendor.rfq_number,
+          shipmentIndex: vendor.shipment_index,
+          airline: vendor.airline,
+          airport: vendor.airport,
+          rank: vendor.rank,
+          isWinner: false,
+        });
+
+        console.log("📩 Non-winner email sent to:", vendor.email);
+      }
+    }
+  } catch (error) {
+    console.error("❌ Error in sendAuctionResultEmails:", error);
+  }
+};
+
+const sendVendorAuctionResultEmail = async ({
+  email,
+  name,
+  rfqNumber,
+  shipmentIndex,
+  airline,
+  airport,
+  rank,
+  isWinner,
+}) => {
+  const subject = isWinner
+    ? `Congratulations! You Won Auction ${rfqNumber}`
+    : `Auction Result – ${rfqNumber}`;
+
+  const statusMessage = isWinner
+    ? `<h3 style="color:green;">Congratulations! You have WON the auction.</h3>`
+    : `<h3 style="color:#c0392b;">Thank you for participating in the auction.</h3>`;
+
+  const mailOptions = {
+    from: '"Ajanta E-Auction" <your-email@example.com>',
+    to: email,
+    subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; background:#f4f4f4; padding:30px;">
+        <div style="max-width:600px;margin:auto;background:#fff;border-radius:8px;">
+          
+          <div style="background:#003366;color:#fff;padding:20px;">
+            <h2>Ajanta E-Auction Platform</h2>
+          </div>
+
+          <div style="padding:25px;">
+            <p>Dear <strong>${name || "Vendor"}</strong>,</p>
+
+            ${statusMessage}
+
+            <h3 style="color:#003366;margin-top:20px;">
+              Auction Details
+            </h3>
+
+            <p><b>Auction Number:</b> ${rfqNumber.replace(/^RFQ/, "AUC")}</p>
+            <p><b>Airline:</b> ${airline}</p>
+            <p><b>Airport:</b> ${airport}</p>
+            <p><b>Your Rank:</b> ${rank}</p>
+
+            ${
+              isWinner
+                ? `
+              <p style="margin-top:15px;">
+                Our team will contact you shortly for further process.
+              </p>
+            `
+                : `
+              <p style="margin-top:15px;">
+                We appreciate your participation and look forward to your involvement in future auctions.
+              </p>
+            `
+            }
+
+            <p style="margin-top:25px;">
+              Best regards,<br/>
+              Ajanta E-Auction Team
+            </p>
+          </div>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (err) {
+    console.error(`❌ Failed sending result email to ${email}`, err.message);
+  }
+};
+
 module.exports = {
   sendVendorInvitation,
   sendBuyerConfirmationEmail,
@@ -789,4 +902,6 @@ module.exports = {
   sendHodRejectedMail,
   sendQuoteDetailsToMarketingTeam,
   sendVendorAuctionInvitation,
+  sendAuctionResultEmails,
+  sendVendorAuctionResultEmail,
 };

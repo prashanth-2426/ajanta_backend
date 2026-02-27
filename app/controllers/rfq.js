@@ -13,10 +13,12 @@ const {
   sendVendorInvitation,
   sendBuyerConfirmationEmail,
 } = require("../queues/mailer");
-let uuidv4;
-import("uuid").then((m) => {
-  uuidv4 = m.v4;
-});
+const auctionService = require("../services/auctionService");
+
+// let uuidv4;
+// import("uuid").then((m) => {
+//   uuidv4 = m.v4;
+// });
 
 const createRFQWithAttachments = async (req, res) => {
   const t = await RFQ.sequelize.transaction();
@@ -68,16 +70,39 @@ const createRFQ = async (req, res) => {
       : "rfq_number";
 
     if (existing) {
+      const existingData = existing.data || {};
+
+      // If this is auction update, rebuild auctionPayload
+      let updatedData = {
+        ...existingData,
+        ...fullData,
+      };
+
+      if (identifier === "auction_number") {
+        const auctionPayload = {
+          ...(existingData.auction_data || {}), // preserve old fields
+          mode: fullData.type || existingData?.auction_data?.mode || "reverse",
+          title: fullData.title || fullData.rfq_title,
+          endTime: fullData.close_date_time,
+          startTime: fullData.open_date_time,
+          invited: Array.isArray(fullData.vendors)
+            ? fullData.vendors.map((v) => v.email).filter(Boolean)
+            : existingData?.auction_data?.invited || [],
+          auction_number: fullData.auction_number,
+        };
+
+        updatedData.auction_data = auctionPayload;
+      }
+
       await existing.update(
         {
-          ...existing.toJSON(),
           rfq_number: fullData.rfq_number,
           auction_number: fullData.auction_number || null,
           form_type: fullData.form_type || null,
           rfq_type: fullData.rfq_type || null,
           status: fullData.status || null,
           quote_count: fullData.quote_count || 0,
-          data: fullData,
+          data: updatedData,
         },
         { transaction: t },
       );
@@ -104,7 +129,7 @@ const createRFQ = async (req, res) => {
         //Here need to call socks controller and  create an auction_data object and update data object with that
 
         const auctionPayload = {
-          id: uuidv4(),
+          id: "",
           bids: {},
           mode: fullData.type || "reverse",
           title: fullData.title || fullData.rfq_title,
@@ -141,7 +166,11 @@ const createRFQ = async (req, res) => {
     }
 
     await t.commit();
-    if (fullData?.vendors?.length && fullData.form_type != "draft") {
+    if (
+      fullData?.vendors?.length &&
+      fullData.form_type != "draft" &&
+      identifier !== "auction_number"
+    ) {
       //console.log("Scheduling vendor invitations...", fullData.form_type);
       fullData.vendors.forEach((vendor) => {
         sendVendorInvitation(vendor.email, vendor.name, fullData.title);

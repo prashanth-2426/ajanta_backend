@@ -2,7 +2,10 @@
 
 const { name } = require("../queues/mailQueue");
 const { RfqData } = require("../models");
-const { sendVendorAuctionInvitation } = require("../queues/mailer");
+const {
+  sendVendorAuctionInvitation,
+  sendAuctionResultEmails,
+} = require("../queues/mailer");
 
 let auctions = {};
 let ioInstance = null;
@@ -53,7 +56,7 @@ module.exports.init = ({ io, uuid }) => {
     );
 
     socket.on("joinAuction", ({ auctionId, user }) => {
-      //console.log("Join auction:", auctionId, "UserID:", userId, "User:", user);
+      console.log("Join auction:", auctionId, "UserID:", userId, "User:", user);
       const auction = auctions[auctionId];
       if (!auction)
         return socket.emit("errorMsg", { message: "Auction not found" });
@@ -455,6 +458,58 @@ const sendInvitationsToVendors = async ({
       auctionNumber: auction_number,
       startTime,
       endTime,
+    });
+  }
+};
+
+module.exports.sendAuctionResult = async (req, res) => {
+  try {
+    const { winner, nonWinners } = req.body;
+
+    console.log("Current auction winner:", winner);
+    console.log("Current auction non winners:", nonWinners);
+
+    if (!winner) {
+      return res.status(400).json({
+        ok: false,
+        message: "Winner data missing",
+      });
+    }
+
+    await sendAuctionResultEmails({ winner, nonWinners });
+
+    const rfqRecord = await RfqData.findOne({
+      where: { rfq_number: winner.rfq_number },
+    });
+
+    if (!rfqRecord) {
+      throw new Error("RFQ record not found");
+    }
+
+    const existingData = rfqRecord.data || {};
+    const existingAuctionData = existingData.auction_data || {};
+
+    const updatedAuctionData = {
+      ...existingAuctionData,
+      mailSent: true,
+    };
+
+    await rfqRecord.update({
+      data: {
+        ...existingData,
+        auction_data: updatedAuctionData,
+      },
+    });
+
+    return res.json({
+      ok: true,
+      message: "Auction result emails sent successfully",
+    });
+  } catch (error) {
+    console.error("Error sending result emails:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Server error",
     });
   }
 };
