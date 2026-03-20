@@ -11,6 +11,7 @@ const {
   sendHodApprovedMail,
   sendHodRejectedMail,
   sendQuoteDetailsToMarketingTeam,
+  sendNominationRejectedMail,
 } = require("../queues/mailer");
 const path = require("path");
 
@@ -206,6 +207,9 @@ const getQuoteSummaryById = async (req, res) => {
               hodAcceptRequestDetails: entry.hodAcceptRequestDetails || {},
               sharedtoMarketingTeamDetails:
                 entry.sharedtoMarketingTeamDetails || {},
+              buyerDocumentsUploadedDetails:
+                entry.buyerDocumentsUploadedDetails || {},
+              invoiceDetails: entry.invoiceDetails || {},
             });
           });
         });
@@ -246,7 +250,7 @@ const getQuoteSummaryById = async (req, res) => {
           " Airport (" +
           rfq.data?.destination_airport +
           ")",
-        incoterm_exp_air: rfq.data?.incoterm_exp_air,
+        incoterm_exp_air: rfq.data?.incoterm,
         origin_airport: rfq.data?.origin_airport,
         destination_airport: rfq.data?.destination_airport,
         origin_address: rfq.data?.origin_address,
@@ -299,7 +303,13 @@ const getQuoteSummaryById = async (req, res) => {
 const updateRfqStatus = async (req, res) => {
   const { rfq_number, action } = req.body;
 
-  const file = req.file ? req.file.filename : null;
+  console.log("Update RFQ Status called with:", {
+    rfq_number,
+    action,
+    body: req.body,
+  });
+
+  const files = req.files?.map((file) => file.filename) || [];
 
   try {
     const rfq = await RfqData.findOne({ where: { rfq_number } });
@@ -331,6 +341,9 @@ const updateRfqStatus = async (req, res) => {
       case "shared_to_marketing_team":
         status = "shared_to_marketing_team";
         break;
+      case "documents_submitted_by_exports":
+        status = "documents_submitted_by_exports";
+        break;
       default:
         return res.status(400).json({ error: "Invalid action" });
     }
@@ -343,21 +356,64 @@ const updateRfqStatus = async (req, res) => {
     await rfq.update({ status, data: updatedData });
     if (status === "hod_approved") {
       const requestedForHodApprovalQuote = await QuotesData.findOne({
-        where: { rfq_id: rfq_number, vendor_id: req.body.vendors[0] },
+        where: { rfq_id: rfq_number, vendor_id: req.body.vendors },
       });
+
+      console.log(
+        "fasdfsadf requestedForHodApprovalQuote",
+        requestedForHodApprovalQuote,
+      );
       if (!requestedForHodApprovalQuote) {
         return res.status(404).json({ message: "Quote not found" });
       }
       const qData = { ...requestedForHodApprovalQuote.data };
+
+      if (!qData.hodAcceptRequestDetails) {
+        qData.hodAcceptRequestDetails = {};
+
+        let finalAttachments = [];
+
+        if (req.files && req.files.length > 0) {
+          // New uploaded files
+          finalAttachments = req.files.map((file) => file.filename);
+        } else if (req.body.attachment) {
+          // Files reused from previous RFQ
+          finalAttachments = Array.isArray(req.body.attachment)
+            ? req.body.attachment
+            : [req.body.attachment];
+        }
+
+        console.log("finalAttachments:", finalAttachments);
+
+        // Append / update data
+        qData.hodAcceptRequestDetails = {
+          ...qData.hodAcceptRequestDetails,
+          accepted_at: new Date(),
+          hod_msg: req.body.hod_msg || "",
+          hod_name: req.body.hod_name || "",
+          hod_email: req.body.hod_email || "",
+          attached_file: finalAttachments || [],
+          hod_approved_on: new Date(),
+          status: "hod_approved",
+          requested_airline: req.body.requestedAirline || "",
+        };
+
+        await requestedForHodApprovalQuote.update({ data: qData });
+        return res.json({
+          message: "HOD approval status updated successfully",
+        });
+      }
+
       qData.hodAcceptRequestDetails = {
         requested_airline: req.body.requestedAirline[0] || "",
-        remarks: qData.hodAcceptRequestDetails.remarks || "",
+        remarks: qData.hodAcceptRequestDetails?.remarks || "",
         accepted_at: qData.hodAcceptRequestDetails.accepted_at || "",
         status: "hod_approved",
         hod_msg: req.body.hod_msg || "",
         hod_approved_on: new Date(),
         hod_email: req.body.hod_email || "",
         hod_name: req.body.hod_name || "",
+        attached_file: qData.hodAcceptRequestDetails.attached_file || [],
       };
       await requestedForHodApprovalQuote.update({ data: qData });
 
@@ -384,6 +440,43 @@ const updateRfqStatus = async (req, res) => {
         );
       }
     }
+
+    if (status === "documents_submitted_by_exports") {
+      console.log("reached documents_submitted_by_exports with files:", files);
+      const documentsUploadToRecord = await QuotesData.findOne({
+        where: { rfq_id: rfq_number, vendor_id: req.body.vendor_id },
+      });
+      if (!documentsUploadToRecord) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      console.log(
+        "Found quote record for document upload:",
+        documentsUploadToRecord,
+      );
+      const qData = { ...documentsUploadToRecord.data };
+      const uploadedDocuments = req.files?.map((file) => file.filename) || [];
+      console.log("Files to be attached in quote record:", uploadedDocuments);
+      console.log("Existing quote data before attaching documents:", qData);
+      qData.buyerDocumentsUploadedDetails = {
+        remarks: req.body.remarks || "",
+        submitted_at: new Date(),
+        status: "buyer_documents_uploaded",
+        vendor_email: req.body.vendor_email || "",
+        vendor_name: req.body.vendor_name || "",
+        vendor_id: req.body.vendor_id || "",
+        airline_name: req.body.airline_name || "",
+        attached_file: uploadedDocuments || [],
+      };
+      await documentsUploadToRecord.update({ data: qData });
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+      console.log(
+        "rfqRecordtst in documents_submitted_by_exports:",
+        rfqRecordtst,
+      );
+    }
+
     if (status === "hod_rejected") {
       const requestedForHodApprovalQuote = await QuotesData.findOne({
         where: { rfq_id: rfq_number, vendor_id: req.body.vendors[0] },
@@ -401,6 +494,7 @@ const updateRfqStatus = async (req, res) => {
         hod_rejected_on: new Date(),
         hod_email: req.body.hod_email || "",
         hod_name: req.body.hod_name || "",
+        attached_file: qData.hodAcceptRequestDetails.attached_file || [],
       };
       await requestedForHodApprovalQuote.update({ data: qData });
       const rfqRecordtst = await RfqData.findOne({
@@ -434,6 +528,8 @@ const updateRfqStatus = async (req, res) => {
         return res.status(404).json({ message: "Quote not found" });
       }
       const qData = { ...requestedForHodApprovalQuote.data };
+
+      const files = req.files?.map((file) => file.filename) || [];
       qData.hodAcceptRequestDetails = {
         //requested_airline: req.body.requestedAirline[0] || "",
         remarks: req.body.remarks || "",
@@ -441,7 +537,7 @@ const updateRfqStatus = async (req, res) => {
         status: "requested_hod_approval",
         hod_email: req.body.hod_email || "",
         hod_name: req.body.hod_name || "",
-        attached_file: file || "",
+        attached_file: files || [],
       };
       await requestedForHodApprovalQuote.update({ data: qData });
       const rfqRecordtst = await RfqData.findOne({
@@ -476,13 +572,14 @@ const updateRfqStatus = async (req, res) => {
         return res.status(404).json({ message: "Quote not found" });
       }
       const qData = { ...quoteData.data };
+      const files = req.files?.map((file) => file.filename) || [];
       qData.sharedtoMarketingTeamDetails = {
         remarks: req.body.remarks || "",
         accepted_at: new Date(),
         status: "shared_to_marketing_team",
         marketing_name: req.body.marketing_name || "",
         marketing_email: req.body.marketing_email || "",
-        attached_file: file || "",
+        attached_file: files || [],
       };
       await quoteData.update({ data: qData });
       const rfqRecordtst = await RfqData.findOne({
@@ -500,11 +597,16 @@ const updateRfqStatus = async (req, res) => {
           throw new Error("File not created within time limit");
         };
 
-        const fullPath = path.join(__dirname, "..", "uploads", "rfq", file);
+        //const fullPath = path.join(__dirname, "..", "uploads", "rfq", file);
 
         //console.log("Waiting for file to be available at:", fullPath);
 
-        await waitForFile(fullPath); // reliably wait until file exists
+        //await waitForFile(fullPath); // reliably wait until file exists
+
+        for (const f of files) {
+          const fullPath = path.join(__dirname, "..", "uploads", "rfq", f);
+          await waitForFile(fullPath);
+        }
 
         await sendQuoteDetailsToMarketingTeam(
           req.body.marketing_email,
@@ -512,7 +614,7 @@ const updateRfqStatus = async (req, res) => {
           rfq_number,
           rfqRecordtst?.data?.buyer?.name,
           req.body.remarks,
-          file,
+          files,
         );
 
         console.log(

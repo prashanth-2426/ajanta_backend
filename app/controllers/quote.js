@@ -356,6 +356,13 @@ const getQuotesByRfq = async (req, res) => {
       if (q.data.hodAcceptRequestDetails) {
         result.hodAcceptRequestDetails = q.data.hodAcceptRequestDetails;
       }
+      if (q.data.buyerDocumentsUploadedDetails) {
+        result.buyerDocumentsUploadedDetails =
+          q.data.buyerDocumentsUploadedDetails;
+      }
+      if (q.data.invoiceDetails) {
+        result.invoiceDetails = q.data.invoiceDetails;
+      }
 
       return result;
     });

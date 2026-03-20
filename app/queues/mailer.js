@@ -543,7 +543,7 @@ const sendHodApprovedMail = async (
 
           <div style="padding: 30px;">
             <p>Dear <strong>${buyerName}</strong>,</p>
-            <p>The HOD has <strong>approved</strong> the selected quote for RFQ <strong>${rfqNumber}</strong>.</p>
+            <p>The HOD has <strong>approved</strong> <strong>${rfqNumber}</strong>.</p>
 
             <p><strong>Airline:</strong> ${airlineName}</p>
 
@@ -552,6 +552,12 @@ const sendHodApprovedMail = async (
                 ? `<p><strong>HOD Remarks:</strong> ${hodMessage}</p>`
                 : ""
             }
+
+            <p>
+              Kindly share the <strong>earliest flight schedule</strong>. Based on the same,
+              we will review and proceed further. After confirmation, we will share the
+              <strong>custom documents</strong> shortly.
+            </p>
 
             <p>You may now continue with the next operational steps.</p>
 
@@ -653,11 +659,16 @@ async function sendQuoteDetailsToMarketingTeam(
   rfqNumber,
   buyerName,
   remarks,
-  attachmentFileName, // new param
+  files = [],
 ) {
-  const filePath = attachmentFileName
-    ? path.join(__dirname, "..", "uploads", "rfq", attachmentFileName)
-    : null;
+  // const filePath = attachmentFileName
+  //   ? path.join(__dirname, "..", "uploads", "rfq", attachmentFileName)
+  //   : null;
+
+  const attachments = files.map((file) => ({
+    filename: file,
+    path: path.join(__dirname, "..", "uploads", "rfq", file),
+  }));
 
   //console.log("Preparing to send quote details to marketing team...", filePath);
 
@@ -682,11 +693,11 @@ async function sendQuoteDetailsToMarketingTeam(
         <p><strong>Remarks from Exports Team:</strong><br/>${remarks}</p>
 
         ${
-          attachmentFileName
+          attachments.length > 0
             ? `
           <p>
             A document has been attached for your reference.<br>
-            <strong>Attachment File:</strong> ${attachmentFileName}
+            <strong>Attachment File:</strong> ${attachments.map((f) => `<br/>${f}`).join("")}
           </p>
         `
             : ""
@@ -699,14 +710,7 @@ async function sendQuoteDetailsToMarketingTeam(
         <p>Regards,<br/>Exports Team</p>
       </div>
     `,
-    attachments: attachmentFileName
-      ? [
-          {
-            filename: attachmentFileName,
-            path: filePath,
-          },
-        ]
-      : [],
+    attachments: attachments,
   };
 
   await transporter.sendMail(mailOptions);
@@ -721,6 +725,19 @@ const sendVendorAuctionInvitation = async ({
   startTime,
   endTime,
 }) => {
+  console.log(`Preparing auction invitation for ${startTime} ${endTime}...`);
+
+  const formatIST = (date) =>
+    new Date(date).toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+
   const joinUrl = `https://ajantapharma.coact.co.in/login?auctionId=${auctionId}`;
 
   const mailOptions = {
@@ -743,10 +760,10 @@ const sendVendorAuctionInvitation = async ({
             <h3 style="color:#003366">${rfqTitle}</h3>
 
             <p><b>Auction Number:</b> ${auctionNumber}</p>
-            <p><b>Auction ID:</b> ${auctionId}</p>
+            <p><b>Auction Participation ID:</b> ${auctionId}</p>
 
-            <p><b>Start Time:</b> ${new Date(startTime).toLocaleString()}</p>
-            <p><b>End Time:</b> ${new Date(endTime).toLocaleString()}</p>
+            <p><b>Start Time:</b> ${formatIST(startTime)}</p>
+            <p><b>End Time:</b> ${formatIST(endTime)}</p>
 
             <p style="margin-top:15px;">
               Please use the Auction ID above to join and participate in the auction.
@@ -888,6 +905,37 @@ const sendVendorAuctionResultEmail = async ({
   }
 };
 
+const sendNominationRejectedMail = async (
+  vendorEmail,
+  vendorName,
+  rfqNumber,
+  reason,
+) => {
+  const mailOptions = {
+    from: '"Ajanta E-Auction" <your-email@example.com>',
+    to: vendorEmail,
+    subject: `Nomination Update – RFQ ${rfqNumber}`,
+    html: `
+      <div style="font-family: Arial; padding:20px">
+        <p>Dear <strong>${vendorName}</strong>,</p>
+
+        <p>Your nomination for shipment under <strong>${rfqNumber}</strong> has been withdrawn.</p>
+
+        <p><strong>Reason:</strong> ${reason}</p>
+
+        <p>Another airline/vendor has been approved based on operational requirements.</p>
+
+        <p>Thank you for your participation.</p>
+
+        <br/>
+        <p>Regards,<br/>Ajanta E-Auction Team</p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
 module.exports = {
   sendVendorInvitation,
   sendBuyerConfirmationEmail,
@@ -904,4 +952,5 @@ module.exports = {
   sendVendorAuctionInvitation,
   sendAuctionResultEmails,
   sendVendorAuctionResultEmail,
+  sendNominationRejectedMail,
 };

@@ -37,7 +37,11 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/apis", routers);
 app.use(
   "/uploads/rfq",
-  express.static(path.join(__dirname, "app", "uploads", "rfq"))
+  express.static(path.join(__dirname, "app", "uploads", "rfq")),
+);
+app.use(
+  "/uploads/invoices",
+  express.static(path.join(__dirname, "app", "uploads", "invoices")),
 );
 //app.use("/api/exchange", require("./routes/exchange"));
 

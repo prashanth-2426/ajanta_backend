@@ -277,16 +277,18 @@ module.exports.createAuction = async (req, res) => {
     title,
     buyerId,
     invited = [],
+    invitedAirlines = [],
     mode,
     startTime,
     endTime,
     rfqNumber,
     auctionId,
+    directAuction = false,
   } = req.body;
 
   let aid = auctionId;
 
-  // ===============================
+  // =====================  ==========
   // ✏️ EDIT EXISTING AUCTION
   // ===============================
   if (aid && auctions[aid]) {
@@ -295,9 +297,11 @@ module.exports.createAuction = async (req, res) => {
       ...auctions[aid], // ✅ preserve bids, auction_number
       title,
       invited,
+      invitedAirlines,
       mode,
       startTime,
       endTime,
+      directAuction: directAuction ?? false,
     };
 
     //console.log("Updated auction:", auctions[aid]);
@@ -339,10 +343,12 @@ module.exports.createAuction = async (req, res) => {
       title,
       buyerId,
       invited,
+      invitedAirlines,
       bids: {},
       mode,
       startTime,
       endTime,
+      directAuction: directAuction ?? false,
       auction_number: rfqNumber ? rfqNumber.replace(/^RFQ/, "AUC") : null,
     };
 
