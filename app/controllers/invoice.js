@@ -1,10 +1,19 @@
 const { QuotesData, RfqData } = require("../models");
+const { sendInvoiceSubmittedMail } = require("../queues/mailer");
+const path = require("path");
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const submitInvoice = async (req, res) => {
   console.log("Submit Invoice API called with body:", req.body);
   try {
-    const { rfq_number, vendor_id, delivery_date, invoice_amount, remarks } =
-      req.body;
+    const {
+      rfq_number,
+      vendor_id,
+      vendor_email,
+      delivery_date,
+      invoice_amount,
+      remarks,
+    } = req.body;
 
     const files = req.files;
 
@@ -33,6 +42,8 @@ const submitInvoice = async (req, res) => {
     console.log("Files to be attached in quote record:", uploadedDocuments);
     console.log("Existing quote data before attaching documents:", qData);
     qData.invoiceDetails = {
+      vendor_id: req.body.vendor_id || "",
+      vendor_email: req.body.vendor_email || "",
       freight_amount: req.body.freight_amount || "",
       dap_amount: req.body.dap_amount || "",
       custom_duty_amount: req.body.custom_duty_amount || "",
@@ -46,6 +57,24 @@ const submitInvoice = async (req, res) => {
     const rfqRecordtst = await RfqData.findOne({
       where: { rfq_number: rfq_number },
     });
+
+    try {
+      await sendInvoiceSubmittedMail(
+        rfqRecordtst?.data?.buyer?.email,
+        rfqRecordtst?.data?.buyer?.name,
+        rfq_number,
+        qData.invoiceDetails,
+      );
+
+      console.log(
+        `📩 Invoices Submitted mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`,
+      );
+    } catch (err) {
+      console.error(
+        `❌ Failed to send Invoices Submitted mail to ${rfqRecordtst?.data?.buyer?.email}`,
+        err.message,
+      );
+    }
 
     return res.status(200).json({
       isSuccess: true,

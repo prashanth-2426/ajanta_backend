@@ -5,6 +5,7 @@ const dashboard = require("../controllers/dashboard");
 router.get("/summary", dashboard.getSummary);
 router.get("/auction-activity", dashboard.getAuctionActivity);
 router.get("/notifications", dashboard.getNotifications);
+router.get("/download-rfq-excel", dashboard.downloadRfqExcel);
 
 router.get("/summary/vendor", dashboard.getVendorSummary);
 router.get("/auction-activity/vendor", dashboard.getVendorAuctionActivity);

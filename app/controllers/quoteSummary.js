@@ -12,6 +12,11 @@ const {
   sendHodRejectedMail,
   sendQuoteDetailsToMarketingTeam,
   sendNominationRejectedMail,
+  sendMarketingTeamRejectedMail,
+  sendMarketingTeamApprovedMail,
+  sendInvoiceRejectedMail,
+  sendInvoiceApprovedMail,
+  sendAccountsMail,
 } = require("../queues/mailer");
 const path = require("path");
 
@@ -344,6 +349,21 @@ const updateRfqStatus = async (req, res) => {
       case "documents_submitted_by_exports":
         status = "documents_submitted_by_exports";
         break;
+      case "marketingteam_rejected":
+        status = "marketingteam_rejected";
+        break;
+      case "marketingteam_approved":
+        status = "marketingteam_approved";
+        break;
+      case "invoice_rejected":
+        status = "invoice_rejected";
+        break;
+      case "invoice_approved":
+        status = "invoice_approved";
+        break;
+      case "shared_to_accounts_team":
+        status = "shared_to_accounts_team";
+        break;
       default:
         return res.status(400).json({ error: "Invalid action" });
     }
@@ -477,6 +497,204 @@ const updateRfqStatus = async (req, res) => {
       );
     }
 
+    if (status === "marketingteam_rejected") {
+      const requestedForMarketingTeamApprovalQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number },
+      });
+
+      if (!requestedForMarketingTeamApprovalQuote) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      // ✅ Deep copy instead of shallow copy
+      const qData = JSON.parse(
+        JSON.stringify(requestedForMarketingTeamApprovalQuote.data),
+      );
+
+      // Update nested object safely
+      qData.sharedtoMarketingTeamDetails = {
+        ...qData.sharedtoMarketingTeamDetails,
+        status: "marketingteam_rejected",
+        remarks: req.body.reason || "",
+        rejected_on: new Date(),
+      };
+
+      console.log("Updated quote data:", qData);
+
+      // Save updated JSON back to DB
+      await requestedForMarketingTeamApprovalQuote.update({ data: qData });
+
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+
+      try {
+        await sendMarketingTeamRejectedMail(
+          rfqRecordtst?.data?.buyer?.email,
+          rfqRecordtst?.data?.buyer?.name,
+          rfq_number,
+          req.body.marketing_name,
+          req.body.reason,
+        );
+
+        console.log(
+          `📩 Marketing rejection mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`,
+        );
+      } catch (err) {
+        console.error(
+          `❌ Failed to send Marketing rejection mail to ${rfqRecordtst?.data?.buyer?.email}`,
+          err.message,
+        );
+      }
+    }
+
+    if (status === "marketingteam_approved") {
+      const requestedForMarketingTeamApprovalQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number },
+      });
+
+      if (!requestedForMarketingTeamApprovalQuote) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      // ✅ Deep copy
+      const qData = JSON.parse(
+        JSON.stringify(requestedForMarketingTeamApprovalQuote.data),
+      );
+
+      // Update marketing approval details
+      qData.sharedtoMarketingTeamDetails = {
+        ...qData.sharedtoMarketingTeamDetails,
+        status: "marketingteam_approved",
+        approved_on: new Date(),
+      };
+
+      console.log("Updated quote data (Marketing Approved):", qData);
+
+      // Save updated JSON
+      await requestedForMarketingTeamApprovalQuote.update({ data: qData });
+
+      // Get buyer details
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+
+      try {
+        await sendMarketingTeamApprovedMail(
+          rfqRecordtst?.data?.buyer?.email,
+          rfqRecordtst?.data?.buyer?.name,
+          rfq_number,
+          req.body.marketing_name,
+        );
+
+        console.log(
+          `📩 Marketing approval mail sent to buyer: ${rfqRecordtst?.data?.buyer?.email}`,
+        );
+      } catch (err) {
+        console.error(
+          `❌ Failed to send Marketing approval mail to ${rfqRecordtst?.data?.buyer?.email}`,
+          err.message,
+        );
+      }
+    }
+
+    if (status === "invoice_approved") {
+      const invoiceQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number },
+      });
+
+      if (!invoiceQuote) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      // ✅ Deep copy
+      const qData = JSON.parse(JSON.stringify(invoiceQuote.data));
+
+      // ✅ Update invoice details
+      qData.invoiceDetails = {
+        ...qData.invoiceDetails,
+        status: "invoice_approved",
+        approved_on: new Date(),
+      };
+
+      console.log("Updated quote data (Invoice Approved):", qData);
+
+      // ✅ Save updated JSON
+      await invoiceQuote.update({ data: qData });
+
+      // ✅ Get buyer details
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+
+      try {
+        const vendorEmail = qData?.invoiceDetails?.vendor_email;
+
+        await sendInvoiceApprovedMail(
+          qData.invoiceDetails?.vendor_email, // ✅ send to vendor
+          rfq_number,
+          qData.invoiceDetails,
+          req.body.approved_by,
+        );
+
+        console.log(`📩 Invoice approved mail sent to vendor: ${vendorEmail}`);
+      } catch (err) {
+        console.error(
+          `❌ Failed to send Invoice approved mail to ${vendorEmail}`,
+          err.message,
+        );
+      }
+    }
+
+    if (status === "invoice_rejected") {
+      const invoiceQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number },
+      });
+
+      if (!invoiceQuote) {
+        return res.status(404).json({ message: "RFQ not found" });
+      }
+
+      // ✅ Deep copy
+      const qData = JSON.parse(JSON.stringify(invoiceQuote.data));
+
+      // ✅ Update invoice details
+      qData.invoiceDetails = {
+        ...qData.invoiceDetails,
+        status: "invoice_rejected",
+        remarks: req.body.reason || "",
+        rejected_on: new Date(),
+      };
+
+      console.log("Updated quote data (Invoice Rejected):", qData);
+
+      // ✅ Save updated JSON
+      await invoiceQuote.update({ data: qData });
+
+      // ✅ Get buyer details
+      const rfqRecordtst = await RfqData.findOne({
+        where: { rfq_number: rfq_number },
+      });
+
+      try {
+        const vendorEmail = qData?.invoiceDetails?.vendor_email;
+
+        await sendInvoiceRejectedMail(
+          vendorEmail, // ✅ send to vendor
+          qData?.invoiceDetails?.vendor_id, // or vendor name if available
+          rfq_number,
+          req.body.reason, // ✅ rejection reason
+        );
+
+        console.log(`📩 Invoice rejected mail sent to vendor: ${vendorEmail}`);
+      } catch (err) {
+        console.error(
+          `❌ Failed to send Invoice rejected mail to ${vendorEmail}`,
+          err.message,
+        );
+      }
+    }
+
     if (status === "hod_rejected") {
       const requestedForHodApprovalQuote = await QuotesData.findOne({
         where: { rfq_id: rfq_number, vendor_id: req.body.vendors[0] },
@@ -573,6 +791,10 @@ const updateRfqStatus = async (req, res) => {
       }
       const qData = { ...quoteData.data };
       const files = req.files?.map((file) => file.filename) || [];
+      console.log(
+        "Files to be attached in quote record for marketing team:",
+        files,
+      );
       qData.sharedtoMarketingTeamDetails = {
         remarks: req.body.remarks || "",
         accepted_at: new Date(),
@@ -626,6 +848,45 @@ const updateRfqStatus = async (req, res) => {
           err.message,
         );
       }
+    }
+
+    if (status === "shared_to_accounts_team") {
+      const quoteData = await QuotesData.findOne({
+        where: { rfq_id: rfq_number },
+      });
+      if (!quoteData) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      const qData = { ...quoteData.data };
+      let selectedInvoiceData = req.body.selected_invoice;
+      const files = JSON.parse(selectedInvoiceData).attached_file || [];
+      qData.sharedtoAccountsTeamDetails = {
+        remarks: req.body.remarks || "",
+        shared_on: new Date(),
+        status: "shared_to_accounts_team",
+        accounts_team_details: req.body.accounts_team_details || [],
+        selected_invoice: JSON.parse(selectedInvoiceData) || {},
+      };
+
+      await quoteData.update({ data: qData });
+      try {
+        const waitForFile = async (fullPath, timeout = 5000) => {
+          const fs = require("fs");
+
+          const start = Date.now();
+          while (Date.now() - start < timeout) {
+            if (fs.existsSync(fullPath)) return true;
+            await wait(200); // check every 200 ms
+          }
+          throw new Error("File not created within time limit");
+        };
+
+        for (const f of files) {
+          const fullPath = path.join(__dirname, "..", "uploads", "invoices", f);
+          await waitForFile(fullPath);
+        }
+        await sendAccountsMail(qData.sharedtoAccountsTeamDetails, files);
+      } catch (err) {}
     }
 
     if (status === "accepted") {

@@ -612,7 +612,7 @@ const sendHodRejectedMail = async (
 
           <div style="padding: 30px;">
             <p>Dear <strong>${buyerName}</strong>,</p>
-            <p>The HOD has <strong>rejected</strong> the selected quote for RFQ <strong>${rfqNumber}</strong>.</p>
+            <p>The HOD has <strong>rejected</strong> the selected quote for <strong>${rfqNumber}</strong>.</p>
 
             <p><strong>Airline:</strong> ${airlineName}</p>
 
@@ -936,6 +936,540 @@ const sendNominationRejectedMail = async (
   await transporter.sendMail(mailOptions);
 };
 
+const sendMarketingTeamRejectedMail = async (
+  buyerEmail,
+  buyerName,
+  rfqNumber,
+  marketingName,
+  marketingMessage,
+) => {
+  const mailOptions = {
+    from: '"Ajanta E-Auction" <your-email@example.com>',
+    to: buyerEmail,
+    subject: `❌ Marketing Team Rejected – RFQ ${rfqNumber}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 30px;">
+        <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <div style="background-color: #dc3545; color: white; padding: 20px 30px;">
+            <h2 style="margin: 0;">Marketing Team Rejected</h2>
+          </div>
+
+          <!-- Body -->
+          <div style="padding: 30px;">
+            <p>Dear <strong>${buyerName}</strong>,</p>
+
+            <p>
+              The Marketing Team has <strong>rejected</strong> the request related to
+              <strong>${rfqNumber}</strong>.
+            </p>
+
+            ${
+              marketingName
+                ? `<p><strong>Reviewed By:</strong> ${marketingName}</p>`
+                : ""
+            }
+
+            ${
+              marketingMessage
+                ? `<p><strong>Marketing Team Remarks:</strong> ${marketingMessage}</p>`
+                : ""
+            }
+
+            <p>
+              Kindly review the request and make the required corrections before
+              submitting again.
+            </p>
+
+            <!-- Button -->
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="https://ajantapharma.coact.co.in/login" style="
+                background-color: #007bff;
+                color: white;
+                text-decoration: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                display: inline-block;
+                font-size: 16px;">
+                Review RFQ
+              </a>
+            </div>
+
+            <p>Best regards,<br/>Ajanta E-Auction Team</p>
+          </div>
+
+          <!-- Footer -->
+          <div style="background-color: #f0f0f0; color: #555; padding: 20px 30px; font-size: 13px; text-align: center;">
+            <p style="margin: 0;">© ${new Date().getFullYear()} Ajanta E-Auction Platform</p>
+            <p>Need help? <a href="mailto:support@ajantha.com">Contact Support</a></p>
+          </div>
+
+        </div>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+const sendMarketingTeamApprovedMail = async (
+  buyerEmail,
+  buyerName,
+  rfqNumber,
+  marketingName,
+) => {
+  const mailOptions = {
+    from: '"Ajanta E-Auction" <your-email@example.com>',
+    to: buyerEmail,
+    subject: `✅ Marketing Team Approved – RFQ ${rfqNumber}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 30px;">
+        <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+          <div style="background-color: #28a745; color: white; padding: 20px 30px;">
+            <h2 style="margin: 0;">Marketing Team Approved</h2>
+          </div>
+
+          <div style="padding: 30px;">
+            <p>Dear <strong>${buyerName}</strong>,</p>
+
+            <p>
+              The Marketing Team has <strong>approved</strong> the request for 
+             <strong>${rfqNumber}</strong>.
+            </p>
+
+            ${
+              marketingName
+                ? `<p><strong>Approved By:</strong> ${marketingName}</p>`
+                : ""
+            }
+
+            <p>You can now proceed with the HOD Approval process.</p>
+
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="https://ajantapharma.coact.co.in/login" style="
+                background-color: #007bff;
+                color: white;
+                text-decoration: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                display: inline-block;
+                font-size: 16px;">
+                Open RFQ
+              </a>
+            </div>
+
+            <p>Best regards,<br/>Ajanta E-Auction Team</p>
+          </div>
+
+          <div style="background-color: #f0f0f0; color: #555; padding: 20px 30px; font-size: 13px; text-align: center;">
+            <p style="margin: 0;">© ${new Date().getFullYear()} Ajanta E-Auction Platform</p>
+            <p>Need help? <a href="mailto:support@ajantha.com">Contact Support</a></p>
+          </div>
+
+        </div>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+const sendInvoiceSubmittedMail = async (
+  toEmail,
+  buyerName,
+  rfqNumber,
+  invoiceDetails,
+) => {
+  try {
+    const {
+      vendor_email,
+      vendor_id,
+      freight_amount,
+      dap_amount,
+      custom_duty_amount,
+      others_amount,
+      remarks,
+      submitted_on,
+    } = invoiceDetails || {};
+
+    const rfqLink = `${process.env.FRONTEND_URL}/rfq-details/${rfqNumber}`;
+
+    const mailOptions = {
+      from: '"Ajantha E-Auction" <your-email@example.com>',
+      to: toEmail,
+      subject: `📄 Invoice Submitted for RFQ ${rfqNumber}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 20px;">
+          
+          <!-- Container -->
+          <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+
+            <!-- Header -->
+            <div style="background-color: #1f2937; color: #ffffff; padding: 15px 20px;">
+              <h2 style="margin: 0;">Ajantha E-Auction</h2>
+            </div>
+
+            <!-- Body -->
+            <div style="padding: 20px; color: #333;">
+              <p>Dear <strong>${buyerName || "User"}</strong>,</p>
+
+              <p>
+                A vendor has submitted invoice details for the following RFQ.
+                Please review the details and proceed with necessary action.
+              </p>
+
+              <!-- RFQ Info -->
+              <div style="background: #f9fafb; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+                <p style="margin: 0;"><strong>RFQ Number:</strong> ${rfqNumber}</p>
+              </div>
+
+              <!-- Vendor Info -->
+              <h4 style="margin-bottom: 8px;">Vendor Details</h4>
+              <p style="margin: 2px 0;"><strong>Vendor ID:</strong> ${vendor_id || "-"}</p>
+              <p style="margin: 2px 0;"><strong>Vendor Email:</strong> ${vendor_email || "-"}</p>
+
+              <!-- Invoice Table -->
+              <h4 style="margin-top: 15px; margin-bottom: 8px;">Invoice Breakdown</h4>
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <tr>
+                  <td style="border: 1px solid #ddd; padding: 8px;"><strong>Freight</strong></td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${freight_amount || "-"}</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #ddd; padding: 8px;"><strong>DAP/DDP</strong></td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${dap_amount || "-"}</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #ddd; padding: 8px;"><strong>Custom Duty</strong></td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${custom_duty_amount || "-"}</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #ddd; padding: 8px;"><strong>Other Charges</strong></td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${others_amount || "-"}</td>
+                </tr>
+              </table>
+
+              ${
+                remarks
+                  ? `<p style="margin-top: 10px;"><strong>Remarks:</strong> ${remarks}</p>`
+                  : ""
+              }
+
+              <p style="margin-top: 10px;">
+                <strong>Submitted On:</strong> ${
+                  submitted_on
+                    ? new Date(submitted_on).toLocaleString()
+                    : new Date().toLocaleString()
+                }
+              </p>
+
+              <!-- CTA Button -->
+              <div style="text-align: center; margin: 30px 0;">
+              <a href="https://ajantapharma.coact.co.in/login" style="
+                background-color: #007bff;
+                color: white;
+                text-decoration: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                display: inline-block;
+                font-size: 16px;">
+                Login to Review Invoice
+              </a>
+            </div>
+
+              <p>
+                Please log in to the platform to review and take action.
+              </p>
+
+              <br/>
+
+              <p>Regards,<br/><strong>Ajantha Platform Team</strong></p>
+            </div>
+
+            <!-- Footer -->
+            <div style="background: #f3f4f6; text-align: center; padding: 10px; font-size: 12px; color: #666;">
+              © ${new Date().getFullYear()} Ajantha E-Auction Platform
+            </div>
+
+          </div>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log(`📩 Invoice submitted mail sent to: ${toEmail}`);
+  } catch (error) {
+    console.error("❌ Error sending invoice mail:", error.message);
+  }
+};
+
+const sendInvoiceRejectedMail = async (
+  toEmail,
+  vendorName,
+  rfqNumber,
+  reason,
+) => {
+  try {
+    const mailOptions = {
+      from: '"Ajanta E-Auction" <your-email@example.com>',
+      to: toEmail,
+      subject: `Invoice Rejected for RFQ ${rfqNumber}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; background:#f4f6f8; padding:20px;">
+          
+          <!-- Header -->
+          <div style="background:#dc2626; padding:12px 20px; color:#fff; border-radius:6px 6px 0 0;">
+            <h2 style="margin:0;">Invoice Rejected</h2>
+          </div>
+
+          <!-- Body -->
+          <div style="background:#fff; padding:20px; border:1px solid #ddd;">
+            <p>
+              Your submitted invoice for the following RFQ has been <strong style="color:#dc2626;">rejected</strong>.
+            </p>
+
+            <h3 style="margin-bottom:5px;">RFQ Details</h3>
+            <p><strong>RFQ Number:</strong> ${rfqNumber}</p>
+
+            ${
+              reason
+                ? `
+              <div style="margin-top:15px; padding:12px; background:#fee2e2; border:1px solid #fca5a5; border-radius:6px;">
+                <strong style="color:#b91c1c;">Rejection Reason:</strong>
+                <div style="margin-top:5px; color:#7f1d1d;">
+                  ${reason}
+                </div>
+              </div>
+            `
+                : ""
+            }
+
+            <p style="margin-top:20px;">
+              Please review the feedback and resubmit the invoice with the necessary corrections.
+            </p>
+
+            <!-- CTA -->
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="https://ajantapharma.coact.co.in/login" style="
+                background-color: #007bff;
+                color: white;
+                text-decoration: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                display: inline-block;
+                font-size: 16px;">
+                Login to Review
+              </a>
+            </div>
+
+            <br/>
+
+            <p>Regards,<br/>Ajantha Platform Team</p>
+          </div>
+
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log(`📩 Invoice rejection mail sent to vendor: ${toEmail}`);
+  } catch (error) {
+    console.error("❌ Error sending invoice rejection mail:", error.message);
+  }
+};
+
+const sendInvoiceApprovedMail = async (
+  toEmail,
+  rfqNumber,
+  invoiceDetails,
+  approvedBy,
+) => {
+  try {
+    const {
+      freight_amount,
+      dap_amount,
+      custom_duty_amount,
+      others_amount,
+      submitted_on,
+    } = invoiceDetails || {};
+
+    const VIEW_URL = `${process.env.FRONTEND_URL}/rfq-details/${rfqNumber}`;
+
+    const mailOptions = {
+      from: '"Ajantha E-Auction" <your-email@example.com>',
+      to: toEmail,
+      subject: `✅ Invoice Approved - RFQ ${rfqNumber}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
+          
+          <div style="max-width:600px; margin:auto; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+            
+            <!-- HEADER -->
+            <div style="background:#28a745; color:#fff; padding:15px; text-align:center;">
+              <h2 style="margin:0;">Ajantha E-Auction</h2>
+              <p style="margin:0;">Invoice Approved</p>
+            </div>
+
+            <!-- BODY -->
+            <div style="padding:20px;">
+
+              <p>
+                Your submitted invoice has been <strong style="color:green;">approved</strong> successfully.
+              </p>
+
+              <!-- RFQ INFO -->
+              <h3 style="margin-bottom:5px;">RFQ Details</h3>
+              <p><strong>RFQ Number:</strong> ${rfqNumber}</p>
+
+              <!-- APPROVAL INFO -->
+              <h3 style="margin-bottom:5px;">Approval Details</h3>
+              <p><strong>Approved By:</strong> ${approvedBy || "-"}</p>
+              <p><strong>Approved On:</strong> ${new Date().toLocaleString()}</p>
+
+              <!-- INVOICE BREAKDOWN -->
+              <h3 style="margin-bottom:5px;">Invoice Summary</h3>
+              <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width:100%;">
+                <tr>
+                  <td><strong>Freight</strong></td>
+                  <td>${freight_amount || "-"}</td>
+                </tr>
+                <tr>
+                  <td><strong>DAP/DDP</strong></td>
+                  <td>${dap_amount || "-"}</td>
+                </tr>
+                <tr>
+                  <td><strong>Custom Duty</strong></td>
+                  <td>${custom_duty_amount || "-"}</td>
+                </tr>
+                <tr>
+                  <td><strong>Other Charges</strong></td>
+                  <td>${others_amount || "-"}</td>
+                </tr>
+              </table>
+
+              <p><strong>Submitted On:</strong> ${
+                submitted_on ? new Date(submitted_on).toLocaleString() : "-"
+              }</p>
+
+              <!-- CTA -->
+              <div style="text-align: center; margin: 30px 0;">
+              <a href="https://ajantapharma.coact.co.in/login" style="
+                background-color: #007bff;
+                color: white;
+                text-decoration: none;
+                padding: 12px 24px;
+                border-radius: 4px;
+                display: inline-block;
+                font-size: 16px;">
+                Login to Review
+              </a>
+            </div>
+
+              <p>
+                You may proceed with the next steps as per the process.
+              </p>
+
+              <br/>
+              <p>Regards,<br/>Ajantha Platform Team</p>
+            </div>
+
+            <!-- FOOTER -->
+            <div style="background:#f1f1f1; padding:10px; text-align:center; font-size:12px; color:#666;">
+              © ${new Date().getFullYear()} Ajantha E-Auction Platform
+            </div>
+
+          </div>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    console.log(`📩 Invoice approved mail sent to: ${toEmail}`);
+  } catch (error) {
+    console.error("❌ Error sending invoice approved mail:", error.message);
+  }
+};
+
+const sendAccountsMail = async (data, files) => {
+  const {
+    status,
+    remarks,
+    shared_on,
+    selected_invoice,
+    accounts_team_details,
+  } = data;
+
+  const emails = accounts_team_details.split(",");
+
+  const attachments = files.map((file) => ({
+    filename: file,
+    path: path.join(__dirname, "..", "uploads", "invoices", file),
+  }));
+
+  const mailOptions = {
+    from: `"RFQ System" <${process.env.EMAIL_USER}>`,
+    to: emails,
+    subject: `📄 Invoice Shared for Review`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+        
+        <h2 style="color:#2563eb;">📄 Invoice Shared for Review</h2>
+      <p><strong>Remarks:</strong> ${remarks}</p>
+      <p><strong>Shared On:</strong> ${new Date(shared_on).toLocaleString()}</p>
+
+      <hr/>
+
+      <h3 style="color:#16a34a;">💰 Invoice Details</h3>
+
+      <table style="width:100%; border-collapse: collapse;">
+        <tr>
+          <td><strong>Vendor Email:</strong></td>
+          <td>${selected_invoice.vendor_email}</td>
+        </tr>
+        <tr>
+          <td><strong>Status:</strong></td>
+          <td>${selected_invoice.status}</td>
+        </tr>
+        <tr>
+          <td><strong>Submitted On:</strong></td>
+          <td>${new Date(selected_invoice.submitted_on).toLocaleString()}</td>
+        </tr>
+      </table>
+
+      <br/>
+
+      <h3 style="color:#f59e0b;">💸 Cost Breakdown</h3>
+
+      <table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse: collapse;">
+        <tr style="background:#f3f4f6;">
+          <th>Freight</th>
+          <th>DAP</th>
+          <th>Custom Duty</th>
+          <th>Others</th>
+        </tr>
+        <tr>
+          <td>${selected_invoice.freight_amount || "-"}</td>
+          <td>${selected_invoice.dap_amount || "-"}</td>
+          <td>${selected_invoice.custom_duty_amount || "-"}</td>
+          <td>${selected_invoice.others_amount || "-"}</td>
+        </tr>
+      </table>
+      <br/>
+        <p>Please review and proceed with the next steps.</p>
+        <br/>
+        <p>Regards,<br/>Exports Team</p>
+      </div>
+    `,
+    attachments: attachments,
+  };
+  await transporter.sendMail(mailOptions);
+};
+
 module.exports = {
   sendVendorInvitation,
   sendBuyerConfirmationEmail,
@@ -953,4 +1487,10 @@ module.exports = {
   sendAuctionResultEmails,
   sendVendorAuctionResultEmail,
   sendNominationRejectedMail,
+  sendMarketingTeamRejectedMail,
+  sendMarketingTeamApprovedMail,
+  sendInvoiceSubmittedMail,
+  sendInvoiceRejectedMail,
+  sendInvoiceApprovedMail,
+  sendAccountsMail,
 };
