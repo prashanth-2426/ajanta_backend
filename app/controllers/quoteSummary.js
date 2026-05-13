@@ -270,6 +270,7 @@ const getQuoteSummaryById = async (req, res) => {
         volumetricFactor: rfq.data?.package_summary?.volumetricFactor,
         package_summary: rfq.data?.package_summary,
         shipmentType: rfq.data?.subindustry,
+        invitedVendors: rfq.data?.vendors || [],
         vendors: rfqQuotes.map((entry) => {
           const vendor = rfq.data?.vendors?.find(
             (v) => v.id == entry.vendor_id,
@@ -298,6 +299,7 @@ const getQuoteSummaryById = async (req, res) => {
       description: rfq.data?.description,
       rfq_items: rfq.data?.rfq_items || [],
       vendors: rankedByTotal,
+      invitedVendors: rfq.data?.vendors || [],
     });
   } catch (error) {
     console.error("Error fetching RFQ summary:", error.message);
@@ -599,6 +601,7 @@ const updateRfqStatus = async (req, res) => {
     }
 
     if (status === "invoice_approved") {
+      //console.log("Processing invoice approval for status:", status);
       const invoiceQuote = await QuotesData.findOne({
         where: { rfq_id: rfq_number },
       });
@@ -851,6 +854,7 @@ const updateRfqStatus = async (req, res) => {
     }
 
     if (status === "shared_to_accounts_team") {
+      console.log("Processing shared_to_accounts_team with body:");
       const quoteData = await QuotesData.findOne({
         where: { rfq_id: rfq_number },
       });
@@ -869,6 +873,21 @@ const updateRfqStatus = async (req, res) => {
       };
 
       await quoteData.update({ data: qData });
+
+      const qDataInvoice = JSON.parse(JSON.stringify(invoiceQuote.data));
+
+      // ✅ Update invoice details
+      qDataInvoice.invoiceDetails = {
+        ...qDataInvoice.invoiceDetails,
+        status: "invoice_approved",
+        approved_on: new Date(),
+      };
+
+      console.log("Updated quote data (Invoice Approved):", qDataInvoice);
+
+      // ✅ Save updated JSON
+      await quoteData.update({ data: qDataInvoice });
+
       try {
         const waitForFile = async (fullPath, timeout = 5000) => {
           const fs = require("fs");

@@ -78,31 +78,31 @@ module.exports.init = ({ io, uuid }) => {
 
       //console.log("Current auction users:", auction.users);
 
-      if (role === "vendor") {
-        //console.log("Vendor joined auction:", auctionId, "UserID:", userId);
-        auction.bids[userId] = auction.bids[userId] || {
-          bid: null,
-          time: null,
-        };
-        auction.bids[userId].socketId = socket.id;
-        socket.emit("rankUpdate", {
-          rank: null,
-          bid: null,
-          startTime: auction.startTime,
-          endTime: auction.endTime,
-        });
-      }
+      // if (role === "vendor") {
+      //   //console.log("Vendor joined auction:", auctionId, "UserID:", userId);
+      //   auction.bids[userId] = auction.bids[userId] || {
+      //     bid: null,
+      //     time: null,
+      //   };
+      //   auction.bids[userId].socketId = socket.id;
+      //   socket.emit("rankUpdate", {
+      //     rank: null,
+      //     bid: null,
+      //     startTime: auction.startTime,
+      //     endTime: auction.endTime,
+      //   });
+      // }
 
-      if (role === "buyer") {
-        //console.log("Buyer joined auction:", auctionId, "UserID:", userId);
-        socket.emit("auctionUpdate", {
-          bids: auction.bids,
-          ranks: computeRanks(auction),
-          startTime: auction.startTime,
-          endTime: auction.endTime,
-          users: auction.users,
-        });
-      }
+      // if (role === "buyer") {
+      //   //console.log("Buyer joined auction:", auctionId, "UserID:", userId);
+      //   socket.emit("auctionUpdate", {
+      //     bids: auction.bids,
+      //     ranks: computeRanks(auction),
+      //     startTime: auction.startTime,
+      //     endTime: auction.endTime,
+      //     users: auction.users,
+      //   });
+      // }
     });
 
     socket.on("placeBid", async ({ auctionId, bid, user, rfqNumber }) => {
@@ -129,7 +129,7 @@ module.exports.init = ({ io, uuid }) => {
       };
 
       const ranks = computeRanks(auction);
-      //console.log("Updated ranks:", ranks);
+      console.log("Updated ranks:", ranks);
 
       io.to(auctionId).emit("auctionUpdate", {
         bids: auction.bids,
@@ -139,7 +139,7 @@ module.exports.init = ({ io, uuid }) => {
         endTime: auction.endTime,
       });
 
-      //console.log("Sending rank updates to vendors");
+      console.log("Sending rank updates to vendors");
 
       // send rank individually to each vendor
       Object.entries(auction.bids).forEach(([vendorId, info]) => {
@@ -151,7 +151,7 @@ module.exports.init = ({ io, uuid }) => {
         }
       });
 
-      //console.log("Updating RFQ auction data in DB", auction);
+      console.log("Updating RFQ auction data in DB", auction);
       auction.ranks = ranks;
 
       await updateRfqAuctionData({
@@ -285,6 +285,8 @@ module.exports.createAuction = async (req, res) => {
     auctionId,
     directAuction = false,
   } = req.body;
+
+  console.log("Create/Edit auction request received. Auction ID:", endTime);
 
   let aid = auctionId;
 
@@ -443,6 +445,45 @@ const updateRfqAuctionData = async ({ rfqNumber, auctionData }) => {
     },
   });
   //console.log("RFQ auction data updated successfully");
+};
+
+exports.updateAuctionData = async (req, res) => {
+  try {
+    const { rfqNumber, newEndTime, auctionId } = req.body;
+
+    const rfqRecord = await RfqData.findOne({
+      where: { rfq_number: rfqNumber },
+    });
+
+    if (!rfqRecord) {
+      throw new Error("RFQ record not found");
+    }
+
+    const existingData = rfqRecord.data || {};
+    const existingAuctionData = existingData.auction_data || {};
+
+    const updatedAuctionData = {
+      ...existingAuctionData,
+      endTime: newEndTime, // 🔥 override here
+    };
+
+    await rfqRecord.update({
+      data: {
+        ...existingData,
+        auction_data: updatedAuctionData,
+      },
+    });
+    return res.status(200).json({
+      success: true,
+      message: "Auction data updated successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 const sendInvitationsToVendors = async ({

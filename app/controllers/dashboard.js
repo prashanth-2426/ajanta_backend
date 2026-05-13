@@ -388,33 +388,102 @@ module.exports = {
         { header: "RFQ Number", key: "rfq", width: 20 },
         { header: "Title", key: "title", width: 30 },
         { header: "Status", key: "status", width: 20 },
-        { header: "RFQ Type", key: "rfq_type", width: 15 },
+        { header: "RFQ Type", key: "rfq_type", width: 20 },
 
         { header: "Buyer Name", key: "buyer", width: 25 },
         { header: "Buyer Email", key: "email", width: 30 },
 
         { header: "Industry", key: "industry", width: 20 },
-        { header: "SubIndustry", key: "subindustry", width: 20 },
+        { header: "Sub Industry", key: "subindustry", width: 20 },
 
-        { header: "Origin", key: "origin", width: 20 },
-        { header: "Destination", key: "destination", width: 20 },
+        { header: "Origin", key: "origin", width: 25 },
+        { header: "Destination", key: "destination", width: 25 },
 
         { header: "Auction Number", key: "auction", width: 20 },
 
-        { header: "Vendor", key: "vendor", width: 25 },
+        { header: "Vendor Name", key: "vendor", width: 25 },
         { header: "Vendor Company", key: "company", width: 25 },
 
-        { header: "Airline", key: "airline", width: 20 },
-        { header: "Total Charges", key: "charges", width: 20 },
-        { header: "Grand Total", key: "grand", width: 20 },
+        // =======================
+        // ✅ PACKAGE QUOTE DETAILS
+        // =======================
+        { header: "Shipment Index", key: "shipment_index", width: 20 },
+        { header: "Airline Name", key: "airline", width: 25 },
+        { header: "Airport", key: "airport", width: 20 },
+        { header: "Currency", key: "currency", width: 15 },
 
-        { header: "Freight", key: "freight", width: 15 },
-        { header: "DAP/DDP", key: "dap", width: 15 },
-        { header: "Other Charges", key: "other", width: 15 },
+        { header: "Base Rate", key: "base_rate", width: 15 },
+        { header: "Chargeable Weight", key: "chargeable_weight", width: 20 },
+        { header: "Gross Weight", key: "gross_weight", width: 20 },
+        { header: "Volume Weight", key: "volume_weight", width: 20 },
 
-        { header: "HOD Status", key: "hod_status", width: 20 },
-        { header: "Marketing Status", key: "marketing_status", width: 25 },
+        { header: "AMS", key: "ams", width: 15 },
+        { header: "AWB", key: "awb", width: 15 },
+        { header: "PAC", key: "pac", width: 15 },
+
+        { header: "Other Charges", key: "other_charges", width: 20 },
+        { header: "DAP/DDP Charges", key: "dap_ddp_charges", width: 20 },
+
+        { header: "Total Charges", key: "total_charges", width: 20 },
+        { header: "Grand Total", key: "grand_total", width: 20 },
+
+        { header: "First Bid Price", key: "first_bid_price", width: 20 },
+
+        { header: "Transit Days", key: "transit_days", width: 20 },
+        { header: "Rate Validity", key: "rate_validity", width: 20 },
+
+        { header: "Remarks", key: "remarks", width: 30 },
+
+        // =======================
+        // ✅ INVOICE DETAILS
+        // =======================
         { header: "Invoice Status", key: "invoice_status", width: 20 },
+        { header: "Invoice Remarks", key: "invoice_remarks", width: 30 },
+
+        { header: "Freight Amount", key: "freight_amount", width: 20 },
+        { header: "DAP Amount", key: "dap_amount", width: 20 },
+        { header: "Other Amount", key: "others_amount", width: 20 },
+        { header: "Custom Duty Amount", key: "custom_duty_amount", width: 25 },
+
+        {
+          header: "Invoice Submitted On",
+          key: "invoice_submitted_on",
+          width: 25,
+        },
+
+        // =======================
+        // ✅ HOD DETAILS
+        // =======================
+        { header: "HOD Status", key: "hod_status", width: 20 },
+        { header: "HOD Remarks", key: "hod_remarks", width: 30 },
+        { header: "HOD Message", key: "hod_msg", width: 30 },
+        { header: "HOD Name", key: "hod_name", width: 20 },
+        { header: "HOD Email", key: "hod_email", width: 30 },
+
+        { header: "Requested Airline", key: "requested_airline", width: 25 },
+
+        { header: "Accepted At", key: "accepted_at", width: 25 },
+        { header: "HOD Approved On", key: "hod_approved_on", width: 25 },
+
+        // =======================
+        // ✅ MARKETING DETAILS
+        // =======================
+        { header: "Marketing Status", key: "marketing_status", width: 25 },
+        { header: "Marketing Remarks", key: "marketing_remarks", width: 30 },
+        { header: "Marketing Name", key: "marketing_name", width: 25 },
+        { header: "Marketing Email", key: "marketing_email", width: 30 },
+
+        // =======================
+        // ✅ BUYER DOCUMENT DETAILS
+        // =======================
+        { header: "Buyer Doc Status", key: "buyer_doc_status", width: 25 },
+        { header: "Buyer Doc Remarks", key: "buyer_doc_remarks", width: 30 },
+        { header: "Buyer Vendor Name", key: "buyer_vendor_name", width: 25 },
+        { header: "Buyer Vendor Email", key: "buyer_vendor_email", width: 30 },
+
+        { header: "Buyer Airline", key: "buyer_airline", width: 25 },
+
+        { header: "Buyer Submitted At", key: "buyer_submitted_at", width: 25 },
       ];
 
       // =======================
@@ -445,12 +514,13 @@ module.exports = {
         // 🔹 FETCH QUOTES
         // =======================
         const quotes = await QuotesData.findAll({
-          where: { rfq_id: data.rfq_number },
+          where: {
+            rfq_id: data.rfq_number,
+          },
         });
 
-        console.log("RFQ:", data.rfq_number, "Quotes Count:", quotes.length);
+        console.log(`RFQ ${data.rfq_number} -> Quotes Count:`, quotes.length);
 
-        // 🚫 NO QUOTES
         if (!quotes.length) {
           sheet.addRow(baseRow);
           continue;
@@ -460,74 +530,171 @@ module.exports = {
         // 🔁 LOOP QUOTES
         // =======================
         for (const quote of quotes) {
-          const vendor =
-            data.vendors?.find(
-              (v) => String(v.id) === String(quote.vendor_id),
-            ) || {};
+          try {
+            const quoteData = quote.data || {};
 
-          const invoice = quote.data.invoiceDetails || {};
-          const hod = quote.data.hodAcceptRequestDetails || {};
-          const marketing = quote.data.sharedtoMarketingTeamDetails || {};
+            console.log(
+              "Processing Quote:",
+              quote.id,
+              JSON.stringify(quoteData, null, 2),
+            );
 
-          let rowAdded = false;
+            // =======================
+            // ✅ VENDOR
+            // =======================
+            const vendor =
+              data.vendors?.find(
+                (v) => String(v.id) === String(quote.vendor_id),
+              ) || {};
 
-          if (
-            Array.isArray(quote.package_quotes) &&
-            quote.package_quotes.length > 0
-          ) {
-            for (const pkg of quote.package_quotes) {
-              if (Array.isArray(pkg.quotes) && pkg.quotes.length > 0) {
-                for (const q of pkg.quotes) {
-                  rowAdded = true;
+            // =======================
+            // ✅ DETAILS
+            // =======================
+            const invoice = quoteData.invoiceDetails || {};
+            const hod = quoteData.hodAcceptRequestDetails || {};
+            const marketing = quoteData.sharedtoMarketingTeamDetails || {};
+            const buyerDocs = quoteData.buyerDocumentsUploadedDetails || {};
 
-                  sheet.addRow({
-                    ...baseRow,
+            // =======================
+            // ✅ PACKAGE QUOTES
+            // =======================
+            const packageQuotes = Array.isArray(quoteData.package_quotes)
+              ? quoteData.package_quotes
+              : [];
 
-                    vendor: vendor?.name || "",
-                    company: vendor?.company || "",
+            // =======================
+            // 🔁 LOOP PACKAGE QUOTES
+            // =======================
+            if (packageQuotes.length > 0) {
+              for (const pkg of packageQuotes) {
+                const quotesArray = Array.isArray(pkg?.quotes)
+                  ? pkg.quotes
+                  : [];
 
-                    airline: q?.airline_name || "",
-                    charges: q?.total_charges || "",
-                    grand: q?.grandTotalValue || "",
+                if (quotesArray.length > 0) {
+                  for (const q of quotesArray) {
+                    sheet.addRow({
+                      ...baseRow,
 
-                    freight: invoice?.freight_amount || "",
-                    dap: invoice?.dap_amount || "",
-                    other: invoice?.others_amount || "",
+                      vendor: vendor?.name || "",
+                      company: vendor?.company || "",
 
-                    hod_status: hod?.status || "",
-                    marketing_status: marketing?.status || "",
-                    invoice_status: invoice?.status || "",
-                  });
+                      shipment_index: pkg?.shipment_index ?? "",
+
+                      airline: q?.airline_name || "",
+                      airport: q?.airport || "",
+                      currency: q?.currency || "",
+
+                      base_rate: q?.base_rate || 0,
+                      chargeable_weight: q?.chargeable_weight || 0,
+                      gross_weight: q?.gross_weight || "",
+                      volume_weight: q?.volume_weight || "",
+
+                      ams: q?.ams || 0,
+                      awb: q?.awb || 0,
+                      pac: q?.pac || 0,
+
+                      other_charges: q?.other_charges || 0,
+                      dap_ddp_charges: q?.dap_ddp_charges || 0,
+
+                      total_charges: q?.total_charges || 0,
+                      grand_total: q?.grandTotalValue || 0,
+
+                      first_bid_price: q?.FirstBidPrice || 0,
+
+                      transit_days: q?.transit_days || "",
+                      rate_validity: q?.rate_validity || "",
+
+                      remarks: q?.remarks || "",
+
+                      // =======================
+                      // ✅ INVOICE
+                      // =======================
+                      invoice_status: invoice?.status || "",
+                      invoice_remarks: invoice?.remarks || "",
+
+                      freight_amount: invoice?.freight_amount || 0,
+                      dap_amount: invoice?.dap_amount || 0,
+                      others_amount: invoice?.others_amount || 0,
+                      custom_duty_amount: invoice?.custom_duty_amount || 0,
+
+                      invoice_submitted_on: invoice?.submitted_on || "",
+
+                      // =======================
+                      // ✅ HOD
+                      // =======================
+                      hod_status: hod?.status || "",
+                      hod_remarks: hod?.remarks || "",
+                      hod_msg: hod?.hod_msg || "",
+                      hod_name: hod?.hod_name || "",
+                      hod_email: hod?.hod_email || "",
+
+                      requested_airline: hod?.requested_airline || "",
+
+                      accepted_at: hod?.accepted_at || "",
+                      hod_approved_on: hod?.hod_approved_on || "",
+
+                      // =======================
+                      // ✅ MARKETING
+                      // =======================
+                      marketing_status: marketing?.status || "",
+
+                      marketing_remarks: marketing?.remarks || "",
+
+                      marketing_name: marketing?.marketing_name || "",
+
+                      marketing_email: marketing?.marketing_email || "",
+
+                      // =======================
+                      // ✅ BUYER DOCS
+                      // =======================
+                      buyer_doc_status: buyerDocs?.status || "",
+
+                      buyer_doc_remarks: buyerDocs?.remarks || "",
+
+                      buyer_vendor_name: buyerDocs?.vendor_name || "",
+
+                      buyer_vendor_email: buyerDocs?.vendor_email || "",
+
+                      buyer_airline: buyerDocs?.airline_name || "",
+
+                      buyer_submitted_at: buyerDocs?.submitted_at || "",
+                    });
+                  }
                 }
               }
+            } else {
+              // =======================
+              // 🚨 FALLBACK ROW
+              // =======================
+              sheet.addRow({
+                ...baseRow,
+
+                vendor: vendor?.name || "",
+                company: vendor?.company || "",
+
+                invoice_status: invoice?.status || "",
+                hod_status: hod?.status || "",
+                marketing_status: marketing?.status || "",
+              });
             }
-          }
-
-          // =======================
-          // 🚨 FALLBACK ROW (CRITICAL)
-          // =======================
-          if (!rowAdded) {
-            sheet.addRow({
-              ...baseRow,
-
-              vendor: vendor?.name || "",
-              company: vendor?.company || "",
-
-              airline: "", // ❌ DO NOT USE q HERE
-              charges: "0",
-              grand: "0",
-
-              freight: invoice?.freight_amount || "",
-              dap: invoice?.dap_amount || "",
-              other: invoice?.others_amount || "",
-
-              hod_status: hod?.status || "",
-              marketing_status: marketing?.status || "",
-              invoice_status: invoice?.status || "",
-            });
+          } catch (quoteError) {
+            console.error("Error processing quote:", quote.id, quoteError);
           }
         }
       }
+
+      // =======================
+      // ✅ HEADER STYLING
+      // =======================
+      sheet.getRow(1).font = {
+        bold: true,
+      };
+
+      sheet.getRow(1).alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
 
       // =======================
       // ✅ SEND FILE
@@ -537,11 +704,21 @@ module.exports = {
         "attachment; filename=RFQ_Auction_Report.xlsx",
       );
 
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+
       await workbook.xlsx.write(res);
+
       res.end();
     } catch (error) {
       console.error("❌ Excel Error:", error);
-      res.status(500).json({ message: "Error generating Excel" });
+
+      res.status(500).json({
+        message: "Error generating Excel",
+        error: error.message,
+      });
     }
   },
 
