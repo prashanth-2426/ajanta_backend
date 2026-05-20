@@ -215,6 +215,8 @@ const getQuoteSummaryById = async (req, res) => {
               buyerDocumentsUploadedDetails:
                 entry.buyerDocumentsUploadedDetails || {},
               invoiceDetails: entry.invoiceDetails || {},
+              sharedtoAccountsTeamDetails:
+                entry.sharedtoAccountsTeamDetails || {},
             });
           });
         });
