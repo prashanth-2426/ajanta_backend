@@ -1470,6 +1470,136 @@ const sendAccountsMail = async (data, files) => {
   await transporter.sendMail(mailOptions);
 };
 
+const sendResetPasswordOtpMail = async ({ email, name, otp }) => {
+  try {
+    const mailOptions = {
+      from: `"E-Auction Platform" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `🔐 Password Reset OTP`,
+      html: `
+        <div style="
+          font-family: Arial, sans-serif;
+          line-height: 1.6;
+          background: #f4f6f9;
+          padding: 30px;
+        ">
+          <div style="
+            max-width: 600px;
+            margin: auto;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+          ">
+
+            <!-- HEADER -->
+            <div style="
+              background: #1e293b;
+              padding: 20px;
+              text-align: center;
+            ">
+              <h2 style="
+                color: #ffffff;
+                margin: 0;
+                font-size: 24px;
+              ">
+                E-Auction Platform
+              </h2>
+            </div>
+
+            <!-- BODY -->
+            <div style="padding: 30px;">
+
+              <h3 style="
+                margin-top: 0;
+                color: #111827;
+              ">
+                Password Reset Request
+              </h3>
+
+              <p style="
+                color: #4b5563;
+                font-size: 15px;
+              ">
+                Hello ${name || "User"},
+              </p>
+
+              <p style="
+                color: #4b5563;
+                font-size: 15px;
+              ">
+                We received a request to reset your password.
+                Please use the OTP below to continue.
+              </p>
+
+              <!-- OTP BOX -->
+              <div style="
+                text-align: center;
+                margin: 35px 0;
+              ">
+                <div style="
+                  display: inline-block;
+                  background: #eff6ff;
+                  border: 2px dashed #2563eb;
+                  padding: 18px 40px;
+                  border-radius: 12px;
+                  font-size: 32px;
+                  font-weight: bold;
+                  letter-spacing: 8px;
+                  color: #1d4ed8;
+                ">
+                  ${otp}
+                </div>
+              </div>
+
+              <p style="
+                color: #dc2626;
+                font-size: 14px;
+                font-weight: 600;
+              ">
+                ⚠️ This OTP is valid for 10 minutes only.
+              </p>
+
+              <p style="
+                color: #6b7280;
+                font-size: 14px;
+              ">
+                If you did not request this password reset,
+                please ignore this email.
+              </p>
+
+            </div>
+
+            <!-- FOOTER -->
+            <div style="
+              background: #f9fafb;
+              padding: 15px;
+              text-align: center;
+              border-top: 1px solid #e5e7eb;
+            ">
+              <p style="
+                margin: 0;
+                font-size: 13px;
+                color: #6b7280;
+              ">
+                © ${new Date().getFullYear()} E-Auction Platform
+              </p>
+            </div>
+
+          </div>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    return true;
+  } catch (err) {
+    console.log("OTP Mail Error:", err);
+    return false;
+  }
+};
+
 module.exports = {
   sendVendorInvitation,
   sendBuyerConfirmationEmail,
@@ -1493,4 +1623,5 @@ module.exports = {
   sendInvoiceRejectedMail,
   sendInvoiceApprovedMail,
   sendAccountsMail,
+  sendResetPasswordOtpMail,
 };

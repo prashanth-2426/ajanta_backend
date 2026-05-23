@@ -13,7 +13,10 @@ const getUserById = async (req, res) => {
   try {
     const user = await User.findByPk(req.params.id);
     if (!user)
-      return res.status(404).json({ isSuccess: false, msg: "User not found" });
+      return res.status(404).json({
+        isSuccess: false,
+        msg: "User not found while fetching user by ID",
+      });
     return res.json({ isSuccess: true, user });
   } catch (error) {
     return res.status(500).json({ isSuccess: false, error: error.message });
@@ -25,7 +28,9 @@ const updateUser = async (req, res) => {
     const { id } = req.params;
     const [updated] = await User.update(req.body, { where: { id } });
     if (!updated)
-      return res.status(404).json({ isSuccess: false, msg: "User not found" });
+      return res
+        .status(404)
+        .json({ isSuccess: false, msg: "User not found during update user" });
     return res.json({ isSuccess: true, msg: "User updated successfully" });
   } catch (error) {
     return res.status(500).json({ isSuccess: false, error: error.message });

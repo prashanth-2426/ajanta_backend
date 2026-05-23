@@ -2,6 +2,8 @@ const bcrypt = require("bcrypt");
 
 const { User } = require("../models");
 const { generateToken } = require("../utils/auth");
+const otpGenerator = require("otp-generator");
+const { sendResetPasswordOtpMail } = require("../queues/mailer");
 
 const register = async (req, res) => {
   const { name, email, password, role, isEdit, id } = req.body;
@@ -11,9 +13,10 @@ const register = async (req, res) => {
     if (isEdit && id) {
       const user = await User.findByPk(id);
       if (!user) {
-        return res
-          .status(404)
-          .json({ isSuccess: false, msg: "User not found." });
+        return res.status(404).json({
+          isSuccess: false,
+          msg: "User not found during register user.",
+        });
       }
 
       if (email !== user.email) {
@@ -57,7 +60,7 @@ const register = async (req, res) => {
   try {
     const todayDate = new Date();
     const result = todayDate.setDate(
-      todayDate.getDate() + process.env.PASSWORDEXPIRY
+      todayDate.getDate() + process.env.PASSWORDEXPIRY,
     );
 
     const newUser = await User.create({
@@ -152,6 +155,28 @@ const validateEmail = async (req, res) => {
 
   const user = await User.findOne({ where: { email: email } });
   if (user) {
+    const otp = otpGenerator.generate(6, {
+      upperCaseAlphabets: false,
+      lowerCaseAlphabets: false,
+      specialChars: false,
+    });
+
+    // Expiry 10 mins
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+    console.log("Generated OTP:", otp, "Expiry:", expiry);
+
+    user.resetOtp = otp;
+    user.resetOtpExpiry = expiry;
+
+    await user.save();
+
+    await sendResetPasswordOtpMail({
+      email: user.email,
+      name: user.name,
+      otp,
+    });
+
     return res.json({
       isSuccess: true,
       msg: "Please enter your new password",
@@ -165,16 +190,33 @@ const validateEmail = async (req, res) => {
 };
 
 const updatePassword = async (req, res) => {
-  const { email, newPassword } = req.body;
+  const { email, newPassword, otp } = req.body;
   console.log("Update Password Request:", req.body);
 
   const user = await User.findOne({ where: { email: email } });
+
+  // OTP Check
+  if (user.resetOtp !== otp) {
+    return res.status(400).json({
+      isSuccess: false,
+      msg: "Invalid OTP",
+    });
+  }
+
+  // Expiry Check
+  if (!user.resetOtpExpiry || new Date() > user.resetOtpExpiry) {
+    return res.status(400).json({
+      isSuccess: false,
+      msg: "OTP expired",
+    });
+  }
+
   if (user) {
     //const validPass = await bcrypt.compare(password, user.password);
     //if (validPass) {
     const todayDate = new Date();
     const result = todayDate.setDate(
-      todayDate.getDate() + process.env.PASSWORDEXPIRY
+      todayDate.getDate() + process.env.PASSWORDEXPIRY,
     );
 
     user.password = newPassword;
@@ -199,6 +241,7 @@ const updatePassword = async (req, res) => {
 };
 
 const verifyToken = async (req, res) => {
+  console.log("Verifying token for user:", req);
   const user = await User.findOne({
     where: { email: req.user.email, token: req.token },
   });
@@ -216,7 +259,7 @@ const deleteUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         isSuccess: false,
-        msg: "User not found",
+        msg: "User not found during delete user",
       });
     }
 
@@ -243,7 +286,7 @@ const toggleUserApproval = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         isSuccess: false,
-        msg: "User not found",
+        msg: "User not found during toggle approval",
       });
     }
 
@@ -267,7 +310,10 @@ const toggleUserApproval = async (req, res) => {
 const getUserById = async (req, res) => {
   const user = await User.findByPk(req.params.id);
   if (!user)
-    return res.status(404).json({ isSuccess: false, msg: "User not found" });
+    return res.status(404).json({
+      isSuccess: false,
+      msg: "User not found while fetching user by ID...",
+    });
 
   return res.json({ isSuccess: true, user });
 };
@@ -275,7 +321,9 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
   const user = await User.findByPk(req.params.id);
   if (!user)
-    return res.status(404).json({ isSuccess: false, msg: "User not found" });
+    return res
+      .status(404)
+      .json({ isSuccess: false, msg: "User not found during update user..." });
 
   await user.update(req.body);
   return res.json({ isSuccess: true, msg: "User updated successfully" });

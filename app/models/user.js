@@ -44,12 +44,19 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         defaultValue: "excel",
       },
+      resetOtp: {
+        type: DataTypes.STRING,
+      },
+
+      resetOtpExpiry: {
+        type: DataTypes.DATE,
+      },
     },
     {
       sequelize,
       tableName: "users",
       modelName: "User",
-    }
+    },
   );
 
   User.beforeCreate(async (user) => {

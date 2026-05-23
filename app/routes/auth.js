@@ -12,14 +12,14 @@ router.post("/logout", verifyToken, authController.logout);
 
 router.post("/validate-email", authController.validateEmail);
 
-router.post("/reset-password", authController.updatePassword);
+router.post("/update-password", authController.updatePassword);
 
 router.post("/verify-token", verifyToken, authController.verifyToken);
 router.post("/:id/delete-user", verifyToken, authController.deleteUser);
 router.post(
   "/:id/toggle-user-approval",
   verifyToken,
-  authController.toggleUserApproval
+  authController.toggleUserApproval,
 );
 router.get("/:id", verifyToken, authController.getUserById);
 router.post("/:id", verifyToken, authController.updateUser);
