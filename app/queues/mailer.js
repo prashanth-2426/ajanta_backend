@@ -655,7 +655,8 @@ const sendHodRejectedMail = async (
 
 async function sendQuoteDetailsToMarketingTeam(
   marketingEmail,
-  marketingName,
+  //marketingName,
+  hodTeamDetails,
   rfqNumber,
   buyerName,
   remarks,
@@ -664,6 +665,8 @@ async function sendQuoteDetailsToMarketingTeam(
   // const filePath = attachmentFileName
   //   ? path.join(__dirname, "..", "uploads", "rfq", attachmentFileName)
   //   : null;
+
+  console.log("hod team mail details", hodTeamDetails);
 
   const attachments = files.map((file) => ({
     filename: file,
@@ -675,17 +678,16 @@ async function sendQuoteDetailsToMarketingTeam(
   const mailOptions = {
     from: `"RFQ System" <${process.env.EMAIL_USER}>`,
     to: marketingEmail,
-    subject: `📦 Quote Details Shared for RFQ #${rfqNumber}`,
+    cc: Array.isArray(hodTeamDetails)
+      ? hodTeamDetails.filter(Boolean).join(", ")
+      : "",
+    subject: `📦 Quote Details Shared for #${rfqNumber}`,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.5;">
-        
-        <h2 style="color: #2c3e50;">📢 Quote Shared For Marketing Team Review</h2>
-        
-        <p>Hello <strong>${marketingName}</strong>,</p>
-
+        <p>Hello,</p>
         <p>
           The Export team has shared the quote details for 
-          <strong>RFQ #${rfqNumber}</strong>.
+          <strong>#${rfqNumber}</strong>.
         </p>
 
         <p><strong>Buyer Name:</strong> ${buyerName}</p>
@@ -696,8 +698,7 @@ async function sendQuoteDetailsToMarketingTeam(
           attachments.length > 0
             ? `
           <p>
-            A document has been attached for your reference.<br>
-            <strong>Attachment File:</strong> ${attachments.map((f) => `<br/>${f}`).join("")}
+            A document has been attached for your reference.
           </p>
         `
             : ""

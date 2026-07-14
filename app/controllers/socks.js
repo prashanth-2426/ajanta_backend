@@ -17,27 +17,37 @@ module.exports.init = ({ io, uuid }) => {
   uuidv4 = uuid;
 
   function computeRanks(auction) {
-    //console.log("Computing ranks for auction:", auction.id);
-    const list = Object.entries(auction.bids).map(([vid, b]) => ({
-      vendorId: vid,
-      bid: Number(b.bid),
-      time: b.time,
-    }));
+    const list = [];
 
-    // FORWARD = Highest bid first
-    // REVERSE = Lowest bid first
+    Object.entries(auction.bids || {}).forEach(([vendorId, airlines]) => {
+      Object.entries(airlines || {}).forEach(([airline, data]) => {
+        if (data?.latestBid) {
+          list.push({
+            vendorId,
+            airline,
+            bid: Number(data.latestBid.bid),
+            time: data.latestBid.time,
+          });
+        }
+      });
+    });
+
     list.sort((a, b) => {
       if (auction.mode === "forward") {
-        if (b.bid !== a.bid) return b.bid - a.bid; // high to low
+        if (b.bid !== a.bid) return b.bid - a.bid;
       } else {
-        if (a.bid !== b.bid) return a.bid - b.bid; // low to high
+        if (a.bid !== b.bid) return a.bid - b.bid;
       }
+
       return a.time - b.time;
     });
 
     const ranks = {};
-    list.forEach((v, i) => {
-      ranks[v.vendorId] = i + 1;
+
+    list.forEach((row, index) => {
+      ranks[row.vendorId] = ranks[row.vendorId] || {};
+
+      ranks[row.vendorId][row.airline] = index + 1;
     });
 
     return ranks;
@@ -76,7 +86,9 @@ module.exports.init = ({ io, uuid }) => {
         online: true,
       };
 
-      //console.log("Current auction users:", auction.users);
+      console.log("Current auction users:", auction.users);
+
+      console.log("auctions data after join auction:", auctions);
 
       // if (role === "vendor") {
       //   //console.log("Vendor joined auction:", auctionId, "UserID:", userId);
@@ -105,60 +117,108 @@ module.exports.init = ({ io, uuid }) => {
       // }
     });
 
-    socket.on("placeBid", async ({ auctionId, bid, user, rfqNumber }) => {
-      const auction = auctions[auctionId];
-      console.log(
-        "Place bid:",
+    socket.on(
+      "placeBid",
+      async ({
         auctionId,
-        "UserID:",
-        userId,
-        "Bid:",
         bid,
-        "user:",
+        airlineName,
+        vendorBidCount,
         user,
-      );
-      if (!auction)
-        return socket.emit("errorMsg", { message: "Auction not found" });
-
-      auction.bids[userId] = {
-        bid: Number(bid),
-        socketId: socket.id,
-        time: Date.now(),
-        name: user.name,
-        company: user.company,
-      };
-
-      const ranks = computeRanks(auction);
-      console.log("Updated ranks:", ranks);
-
-      io.to(auctionId).emit("auctionUpdate", {
-        bids: auction.bids,
-        users: auction.users,
-        ranks,
-        startTime: auction.startTime,
-        endTime: auction.endTime,
-      });
-
-      console.log("Sending rank updates to vendors");
-
-      // send rank individually to each vendor
-      Object.entries(auction.bids).forEach(([vendorId, info]) => {
-        if (info.socketId) {
-          io.to(info.socketId).emit("rankUpdate", {
-            rank: ranks[vendorId],
-            bid: info.bid,
-          });
-        }
-      });
-
-      console.log("Updating RFQ auction data in DB", auction);
-      auction.ranks = ranks;
-
-      await updateRfqAuctionData({
         rfqNumber,
-        auctionData: auction,
-      });
-    });
+      }) => {
+        const auction = auctions[auctionId];
+        console.log(
+          "Place bid:",
+          auctionId,
+          "UserID:",
+          userId,
+          "Bid:",
+          bid,
+          "Airline Name:",
+          airlineName,
+          "Vendor Bid Count:",
+          vendorBidCount,
+          "user:",
+          user,
+        );
+        if (!auction)
+          return socket.emit("errorMsg", { message: "Auction not found" });
+
+        auction.bids = auction.bids || {};
+
+        auction.bids[userId] = auction.bids[userId] || {};
+
+        auction.bids[userId][airlineName] = auction.bids[userId][
+          airlineName
+        ] || {
+          latestBid: null,
+          history: [],
+        };
+
+        //----------------------------------------
+        // latest bid
+        //----------------------------------------
+
+        auction.bids[userId][airlineName].latestBid = {
+          bid: Number(bid),
+          socketId: socket.id,
+          time: Date.now(),
+          name: user.name,
+          company: user.company,
+          vendorBidCount: Number(vendorBidCount),
+          airlineName,
+          userId: userId,
+        };
+
+        //----------------------------------------
+        // history
+        //----------------------------------------
+
+        auction.bids[userId][airlineName].history.push({
+          bid: Number(bid),
+          time: Date.now(),
+          vendorBidCount: Number(vendorBidCount),
+          airlineName,
+        });
+
+        const ranks = computeRanks(auction);
+        console.log("Updated ranks:", ranks);
+
+        io.to(auctionId).emit("auctionUpdate", {
+          bids: auction.bids,
+          users: auction.users,
+          ranks,
+          startTime: auction.startTime,
+          endTime: auction.endTime,
+        });
+
+        console.log("Sending rank updates to vendors");
+
+        // send rank individually to each vendor
+        Object.entries(auction.bids).forEach(([vendorId, airlines]) => {
+          Object.entries(airlines).forEach(([airline, data]) => {
+            const latestBid = data.latestBid;
+
+            if (latestBid?.socketId) {
+              io.to(latestBid.socketId).emit("rankUpdate", {
+                rank: ranks?.[vendorId]?.[airline] || null,
+                bid: latestBid.bid,
+                airlineName: airline,
+              });
+            }
+          });
+        });
+
+        console.log("Updating RFQ auction data in DB", auction);
+        auction.ranks = ranks;
+
+        await updateRfqAuctionData({
+          rfqNumber,
+          auctionData: auction,
+        });
+      },
+    );
 
     socket.on("disconnect", () => {
       //console.log("Socket disconnected:", socket.id);
@@ -208,9 +268,11 @@ module.exports.init = ({ io, uuid }) => {
           "Message:",
           message,
         );
+        console.log("auctions data", auctions);
         const auction = auctions[auctionId];
+        console.log("auction data", auction);
         if (!auction) return;
-
+        console.log("Reached log here for chat message");
         const from = userId;
 
         auction.messages = auction.messages || [];
@@ -228,30 +290,82 @@ module.exports.init = ({ io, uuid }) => {
 
         auction.messages.push(chatPayload);
 
-        // buyer -> vendor
-        if (role === "buyer" && auction.bids[to] && auction.bids[to].socketId) {
-          //console.log("Forwarding message to vendor:", to);
-          io.to(auction.bids[to].socketId).emit("chat", {
-            from,
-            message,
-            to,
-            user_name,
-            user_company,
-          });
+        console.log("Chat message stored in auction data:", chatPayload);
 
-          io.to(socket.id).emit("chat", { from, message, to });
+        // buyer -> vendor
+        // if (role === "buyer" && auction.bids[to] && auction.bids[to].socketId) {
+        //   console.log("Forwarding message to vendor:", to);
+        //   io.to(auction.bids[to].socketId).emit("chat", {
+        //     from,
+        //     message,
+        //     to,
+        //     user_name,
+        //     user_company,
+        //   });
+
+        //   io.to(socket.id).emit("chat", { from, message, to });
+        // }
+
+        if (role === "buyer") {
+          const vendorUser = Object.values(auction.users).find(
+            (u) => String(u.id) === String(to),
+          );
+
+          console.log("Vendor User", vendorUser);
+
+          if (vendorUser?.socketId) {
+            console.log("Forwarding message to vendor", vendorUser.socketId);
+
+            io.to(vendorUser.socketId).emit("chat", {
+              from,
+              to,
+              message,
+              user_name,
+              user_company,
+              role,
+              time: Date.now(),
+            });
+
+            // echo back to buyer
+            io.to(socket.id).emit("chat", {
+              from,
+              to,
+              message,
+              user_name,
+              user_company,
+              role,
+              time: Date.now(),
+            });
+          }
         }
 
         // vendor -> buyer
         if (role === "vendor") {
-          //console.log("Forwarding message to buyer");
-          io.to(auctionId).emit("chat", {
-            from,
-            message,
-            to: "buyer",
-            user_name,
-            user_company,
-          });
+          const buyer = Object.values(auction.users).find(
+            (u) => u.role === "user",
+          );
+
+          if (buyer?.socketId) {
+            io.to(buyer.socketId).emit("chat", {
+              from,
+              to: buyer.id,
+              message,
+              user_name,
+              user_company,
+              role,
+              time: Date.now(),
+            });
+
+            io.to(socket.id).emit("chat", {
+              from,
+              to: buyer.id,
+              message,
+              user_name,
+              user_company,
+              role,
+              time: Date.now(),
+            });
+          }
         }
         await updateRfqAuctionData({
           rfqNumber,
@@ -294,7 +408,7 @@ module.exports.createAuction = async (req, res) => {
   // ✏️ EDIT EXISTING AUCTION
   // ===============================
   if (aid && auctions[aid]) {
-    //console.log("Editing auction:", aid);
+    console.log("Editing auction:", aid);
     auctions[aid] = {
       ...auctions[aid], // ✅ preserve bids, auction_number
       title,
@@ -306,7 +420,7 @@ module.exports.createAuction = async (req, res) => {
       directAuction: directAuction ?? false,
     };
 
-    //console.log("Updated auction:", auctions[aid]);
+    console.log("Updated auction:", auctions[aid]);
 
     const rfqRecord = await RfqData.findOne({
       where: { rfq_number: rfqNumber },
@@ -319,11 +433,35 @@ module.exports.createAuction = async (req, res) => {
     const existingData = rfqRecord.data || {};
     const existingAuctionData = existingData.auction_data || {};
 
+    const updatedBids = { ...(existingAuctionData.bids || {}) };
+
+    console.log("Existing bids before update:", updatedBids);
+
+    Object.keys(updatedBids).forEach((vendorBidId) => {
+      Object.keys(updatedBids[vendorBidId] || {}).forEach((airlineName) => {
+        const airlineData = updatedBids[vendorBidId][airlineName];
+        if (airlineData?.latestBid) {
+          updatedBids[vendorBidId][airlineName] = {
+            ...airlineData,
+
+            latestBid: {
+              ...airlineData.latestBid,
+              vendorBidCount: 0,
+            },
+          };
+        }
+      });
+    });
+
+    console.log("Existing bids after update:", updatedBids);
+
     const updatedRfqData = {
       ...existingData,
       auction_data: {
         ...existingAuctionData, // 🔥 keep old values
         ...auctions[aid], // 🔥 update / overwrite only changed fields
+
+        bids: updatedBids,
       },
     };
 
@@ -337,7 +475,7 @@ module.exports.createAuction = async (req, res) => {
       isEdit: true,
     });
   } else {
-    //console.log("Creating new auction");
+    console.log("Creating new auction");
 
     const id = uuidv4();
     auctions[id] = {

@@ -168,8 +168,8 @@ const createRFQ = async (req, res) => {
     await t.commit();
     if (
       fullData?.vendors?.length &&
-      fullData.form_type != "draft" &&
-      identifier !== "auction_number"
+      fullData.form_type != "draft"
+      //identifier !== "auction_number"
     ) {
       //console.log("Scheduling vendor invitations...", fullData.form_type);
       fullData.vendors.forEach((vendor) => {

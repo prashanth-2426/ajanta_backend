@@ -205,6 +205,7 @@ const getQuoteSummaryById = async (req, res) => {
               vendor_id: vendor?.id || entry.vendor_id,
               vendor_name: vendor?.name || `Vendor ${entry.vendor_id}`,
               vendor_email: vendor?.email || "",
+              company: vendor?.company || "-",
               ...q,
               total: parseFloat(q.grandTotalValue || 0),
               negotiation: entry.negotiation,
@@ -800,12 +801,40 @@ const updateRfqStatus = async (req, res) => {
         "Files to be attached in quote record for marketing team:",
         files,
       );
+      // qData.sharedtoMarketingTeamDetails = {
+      //   remarks: req.body.remarks || "",
+      //   accepted_at: new Date(),
+      //   status: "shared_to_marketing_team",
+      //   marketing_name: req.body.marketing_name || "",
+      //   marketing_email: req.body.marketing_email || "",
+      //   attached_file: files || [],
+      // };
+      const marketingTeamDetails =
+        typeof req.body.marketing_team_details === "string"
+          ? req.body.marketing_team_details
+              .split(",")
+              .map((email) => email.trim())
+              .filter(Boolean)
+          : [];
+
+      console.log("Marketing Team Details:", marketingTeamDetails);
+
+      const hodTeamDetails =
+        typeof req.body.hod_team_details === "string"
+          ? req.body.hod_team_details
+              .split(",")
+              .map((email) => email.trim())
+              .filter(Boolean)
+          : [];
+
+      console.log("HOD Team Details:", hodTeamDetails);
+
       qData.sharedtoMarketingTeamDetails = {
         remarks: req.body.remarks || "",
         accepted_at: new Date(),
         status: "shared_to_marketing_team",
-        marketing_name: req.body.marketing_name || "",
-        marketing_email: req.body.marketing_email || "",
+        marketing_team_details: marketingTeamDetails,
+        hod_team_details: hodTeamDetails,
         attached_file: files || [],
       };
       await quoteData.update({ data: qData });
@@ -835,18 +864,44 @@ const updateRfqStatus = async (req, res) => {
           await waitForFile(fullPath);
         }
 
-        await sendQuoteDetailsToMarketingTeam(
-          req.body.marketing_email,
-          req.body.marketing_name,
-          rfq_number,
-          rfqRecordtst?.data?.buyer?.name,
-          req.body.remarks,
-          files,
-        );
+        // await sendQuoteDetailsToMarketingTeam(
+        //   req.body.marketing_email,
+        //   req.body.marketing_name,
+        //   rfq_number,
+        //   rfqRecordtst?.data?.buyer?.name,
+        //   req.body.remarks,
+        //   files,
+        // );
 
-        console.log(
-          `📩 Sharing Quote Data to Marketing Team and mail sent to ${req.body.marketing_email}`,
-        );
+        // console.log(
+        //   `📩 Sharing Quote Data to Marketing Team and mail sent to ${req.body.marketing_email}`,
+        // );
+        for (const marketingUser of marketingTeamDetails) {
+          console.log(
+            "Sending quote details to marketing user:",
+            marketingUser,
+          );
+          try {
+            await sendQuoteDetailsToMarketingTeam(
+              marketingUser,
+              //marketingUser.name,
+              hodTeamDetails,
+              rfq_number,
+              rfqRecordtst?.data?.buyer?.name,
+              req.body.remarks,
+              files,
+            );
+
+            console.log(
+              `📩 Sharing Quote Data to Marketing Team and mail sent to ${marketingUser}`,
+            );
+          } catch (err) {
+            console.error(
+              `❌ Failed to send mail to ${marketingUser}`,
+              err.message,
+            );
+          }
+        }
       } catch (err) {
         console.error(
           `❌ Failed to send Sharing Quote Data to Marketing Team and mail sent to ${req.body.marketing_email}`,

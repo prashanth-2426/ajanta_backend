@@ -41,7 +41,9 @@ const deleteUser = async (req, res) => {
   try {
     const deleted = await User.destroy({ where: { id: req.params.id } });
     if (!deleted)
-      return res.status(404).json({ isSuccess: false, msg: "User not found" });
+      return res
+        .status(404)
+        .json({ isSuccess: false, msg: "User not found during delete user" });
     return res.json({ isSuccess: true, msg: "User deleted successfully" });
   } catch (error) {
     return res.status(500).json({ isSuccess: false, error: error.message });
