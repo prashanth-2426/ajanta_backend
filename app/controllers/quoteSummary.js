@@ -218,6 +218,7 @@ const getQuoteSummaryById = async (req, res) => {
               invoiceDetails: entry.invoiceDetails || {},
               sharedtoAccountsTeamDetails:
                 entry.sharedtoAccountsTeamDetails || {},
+              saveAndDownloadPdfDetails: entry.saveAndDownloadPdfDetails || {},
             });
           });
         });
@@ -368,6 +369,9 @@ const updateRfqStatus = async (req, res) => {
         break;
       case "shared_to_accounts_team":
         status = "shared_to_accounts_team";
+        break;
+      case "save_and_download_pdf":
+        status = "save_and_download_pdf";
         break;
       default:
         return res.status(400).json({ error: "Invalid action" });
@@ -744,6 +748,31 @@ const updateRfqStatus = async (req, res) => {
         );
       }
     }
+
+    if (status === "save_and_download_pdf") {
+      console.log(
+        "Processing save_and_download_pdf action for RFQ:",
+        rfq_number,
+      );
+
+      const saveAndDownloadPdfQuote = await QuotesData.findOne({
+        where: { rfq_id: rfq_number },
+      });
+      if (!saveAndDownloadPdfQuote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      const qData = { ...saveAndDownloadPdfQuote.data };
+
+      qData.saveAndDownloadPdfDetails = {
+        shipment: req.body.shipment || "",
+        currency: req.body.currency || "",
+        exchangeRate: req.body.exchangeRate || "",
+        saved_at: new Date(),
+        status: "save_and_download_pdf",
+      };
+      await saveAndDownloadPdfQuote.update({ data: qData });
+    }
+
     if (status === "requested_hod_approval") {
       const requestedForHodApprovalQuote = await QuotesData.findOne({
         where: { rfq_id: rfq_number },

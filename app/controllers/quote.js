@@ -230,7 +230,7 @@ const createQuote = async (req, res) => {
         ...pkg,
         quotes: pkg.quotes.map((q) => ({
           ...q,
-          FirstBidPrice: q.grandTotalValue,
+          FirstBidPrice: q.total_charges,
         })),
       }));
 

@@ -587,7 +587,7 @@ const updateRfqAuctionData = async ({ rfqNumber, auctionData }) => {
 
 exports.updateAuctionData = async (req, res) => {
   try {
-    const { rfqNumber, newEndTime, auctionId } = req.body;
+    const { rfqNumber, newEndTime, auctionId, extendMinutes } = req.body;
 
     const rfqRecord = await RfqData.findOne({
       where: { rfq_number: rfqNumber },
@@ -611,6 +611,15 @@ exports.updateAuctionData = async (req, res) => {
         auction_data: updatedAuctionData,
       },
     });
+
+    // 🔥 Notify all users in the auction room
+    ioInstance.to(auctionId).emit("auctionTimeExtended", {
+      auctionId,
+      endTime: newEndTime,
+      extendedBy: "buyer",
+      extendMinutes,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Auction data updated successfully",
@@ -648,6 +657,7 @@ const sendInvitationsToVendors = async ({
 };
 
 module.exports.sendAuctionResult = async (req, res) => {
+  console.log("Sending auction result emails for RFQ:", req.body.rfqNumber);
   try {
     const { winner, nonWinners } = req.body;
 
@@ -661,8 +671,6 @@ module.exports.sendAuctionResult = async (req, res) => {
       });
     }
 
-    await sendAuctionResultEmails({ winner, nonWinners });
-
     const rfqRecord = await RfqData.findOne({
       where: { rfq_number: winner.rfq_number },
     });
@@ -673,6 +681,16 @@ module.exports.sendAuctionResult = async (req, res) => {
 
     const existingData = rfqRecord.data || {};
     const existingAuctionData = existingData.auction_data || {};
+
+    if (existingAuctionData.mailSent) {
+      console.log("Emails already sent for this auction result");
+      return res.json({
+        ok: true,
+        message: "Emails already sent",
+      });
+    }
+
+    await sendAuctionResultEmails({ winner, nonWinners });
 
     const updatedAuctionData = {
       ...existingAuctionData,

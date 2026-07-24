@@ -794,6 +794,7 @@ const sendVendorAuctionInvitation = async ({
 };
 
 const sendAuctionResultEmails = async ({ winner, nonWinners }) => {
+  console.log("Sending auction result emails...");
   try {
     // 🔥 1. Send Winner Email
     await sendVendorAuctionResultEmail({

@@ -5,6 +5,7 @@ const {
   RFQTransportAir,
   RFQTransportSea,
   User,
+  QuotesData,
 } = require("../models");
 const fs = require("fs");
 const path = require("path");
@@ -79,6 +80,26 @@ const createRFQ = async (req, res) => {
       };
 
       if (identifier === "auction_number") {
+        const updatedBids = { ...(existingData?.auction_data?.bids || {}) };
+
+        //console.log("Existing bids before update:", updatedBids);
+
+        Object.keys(updatedBids)?.forEach((vendorBidId) => {
+          Object.keys(updatedBids[vendorBidId] || {}).forEach((airlineName) => {
+            const airlineData = updatedBids[vendorBidId][airlineName];
+            if (airlineData?.latestBid) {
+              updatedBids[vendorBidId][airlineName] = {
+                ...airlineData,
+
+                latestBid: {
+                  ...airlineData.latestBid,
+                  vendorBidCount: 0,
+                },
+              };
+            }
+          });
+        });
+
         const auctionPayload = {
           ...(existingData.auction_data || {}), // preserve old fields
           mode: fullData.type || existingData?.auction_data?.mode || "reverse",
@@ -89,6 +110,10 @@ const createRFQ = async (req, res) => {
             ? fullData.vendors.map((v) => v.email).filter(Boolean)
             : existingData?.auction_data?.invited || [],
           auction_number: fullData.auction_number,
+          bids: updatedBids
+            ? updatedBids
+            : existingData?.auction_data?.bids || {},
+          mailSent: false,
         };
 
         updatedData.auction_data = auctionPayload;
@@ -100,12 +125,30 @@ const createRFQ = async (req, res) => {
           auction_number: fullData.auction_number || null,
           form_type: fullData.form_type || null,
           rfq_type: fullData.rfq_type || null,
-          status: fullData.status || null,
+          status:
+            fullData.form_type === "reauction_submitted"
+              ? "reauction_submitted"
+              : fullData.status || null,
           quote_count: fullData.quote_count || 0,
           data: updatedData,
         },
         { transaction: t },
       );
+
+      const saveAndDownloadPdfQuote = await QuotesData.findOne({
+        where: { rfq_id: fullData.rfq_number },
+      });
+      if (saveAndDownloadPdfQuote) {
+        const qData = { ...saveAndDownloadPdfQuote.data };
+        qData.saveAndDownloadPdfDetails = {
+          shipment: "",
+          currency: "",
+          exchangeRate: "",
+          updated_at: new Date(),
+          status: "save_and_download_pdf",
+        };
+        await saveAndDownloadPdfQuote.update({ data: qData });
+      }
     } else {
       // Set default status for auction entries
       // if (identifier === "auction_number") {
